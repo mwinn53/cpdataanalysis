@@ -1,3 +1,11 @@
+import logging
+import os
+import requests
+import time
+from random import random
+
+from bs4 import BeautifulSoup
+import pandas as pd
 
 class CPTableParser:
     ''' Retrieves the HTML scoreboard provided by the website and
@@ -79,9 +87,6 @@ class CPTableParser:
 
         return df
 
-
-
-
 def addplaces(tbl):
     # add the overall place as a column so that each row can be tracked
     # without depending on the context of the table index
@@ -125,13 +130,69 @@ def addalias(fname, tbl):
 
     return tbl
 
-def readteam(fname):
-    ''' Reads and parses the team file, and returns the contents as a list.'''
+def getmaintable(url, afile):
+    # scrape the main table from the scoreboard, enrich and store as a pandas datatable
+    cb = CPTableParser()
+    response = None
 
-    t = []
-    with open(fname) as f:
-        for line in f:
-            s = line.strip()
-            if s[0] != '#':
-                t.append(s)
-    return t
+    while not response:
+        # Handle the condition when the site is not providing a score table
+        try:
+            response = time.time()
+            table = cb.parse_url(url)[0][1]  # Extract the table from the tuple
+
+        except IndexError as e:
+            delay = (10*random()) * (time.time() - response)
+            if delay < 1 or delay > 60:
+                delay = refresh*random()
+            logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
+            time.sleep(delay)
+
+    # Extracts the header names from the first row & removes the first row
+    table.columns = list(table.iloc[0])
+    table = table[1:]
+
+    # Renames the 'unfriendly' titles
+    table.rename(columns={'Play Time(HH:MM)': 'PlayTime'}, inplace=True)
+    table.rename(columns={'Location/Category': 'State'}, inplace=True)
+
+    # Enrich the table with additional columns (overall place, place by
+    # state, aliases from lookup table) and convert the data types
+    # (all strings by default) to int, time, etc.
+    (states, table) = addplaces(table)
+
+    if afile:
+        table = addalias(afile, table)
+
+    table.CurrentScore = pd.to_numeric(table.CurrentScore).fillna(0)
+    table.OverallPlace = pd.to_numeric(table.OverallPlace).fillna(0)
+    table.StatePlace = pd.to_numeric(table.StatePlace).fillna(0)
+
+    return table
+
+def getteamtable(url):
+    # scrape a team's images scores from the detail page, enrich and store as a pandas datatable
+    cb = CPTableParser()
+    response = None
+
+    while not response:
+        # Handle the condition when the site is not providing a score table
+        try:
+            response = time.time()
+            table = cb.parse_url(url)[1][1]  # Extract the table from the tuple
+
+        except IndexError as e:
+            delay = (10*random()) * (time.time() - response)
+            if delay < 1 or delay > 60:
+                delay = refresh*random()
+            logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
+            time.sleep(delay)
+
+    # Extracts the header names from the first row & removes the first row
+    table.columns = list(table.iloc[0])
+    table = table[1:]
+
+    # Renames the 'unfriendly' titles
+    table.rename(columns={'*Warn': 'Warn'}, inplace=True)
+
+    return table

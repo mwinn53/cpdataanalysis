@@ -1,2 +1,5 @@
 nose
 sphinx
+bs4
+pandas
+lxml
