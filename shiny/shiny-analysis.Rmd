@@ -61,6 +61,23 @@ data$Division <- NULL
 
 ```
 
+# Analysis should include
+
+## DESCRIPTION 
+* Brief summary stats of the key fields in the analysis (teams, times, each of the images, etc.)
+
+## COMPETITION:
+* Overall completion (number and ratio) for each of the three images.
+* Comparison of the state, top 25, and bottom 25 among our results.
+* Which image has the lowest score among the best performers?
+
+## OVERALL:
+* How are image scores distributed among common total scores?
+* How do penalties influence the image/total scores?
+* How much time do team spend on images with common scores?
+
+
+
 This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
 
 To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
