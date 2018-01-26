@@ -1,0 +1,114 @@
+---
+title: "cpsbanalysis"
+author: "mw"
+date: "January 26, 2018"
+output: html_document
+runtime: shiny
+---
+
+```{r input, echo = FALSE, message = FALSE, warning = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, 
+                      fig.height=5,
+                      echo=FALSE,
+                      warning=FALSE)
+
+require(ggplot2)
+require(psych)
+require(dplyr)
+
+colMax <- function(i) sapply(i, max, na.rm = TRUE)
+
+files <- list.files(path=".", pattern="*.csv")
+
+data <- lapply(files, read.csv, sep=",", header=TRUE, stringsAsFactor = FALSE)
+data <- do.call("rbind", data)
+
+# Clean up the columns
+names(data)[names(data) == "X"] <- "line"
+
+names(data)[names(data) == "X.Warn"] <- "warn"
+data$warn <- as.factor(data$warn)
+
+data$OverallPlace <- as.integer(data$OverallPlace)
+
+data$Division <- as.factor(data$Division)
+
+data$OverallPlace <- as.integer(data$OverallPlace)
+
+data$PlayTime <- as.difftime(data$PlayTime, format = "%H:%M", units = "mins")
+
+# [TODO] Find a way to generalize the image names
+totals <- colMax(data[names(data)[grep(".Found$", names(data))]] +
+         data[names(data)[grep(".Remaining$", names(data))]])
+names(totals) <- gsub(x = names(totals), pattern = "Found", replacement = "Total") 
+
+# Formats all of the "<image>.Time" columns into minutes
+data[names(data)[grep(".Time", names(data))]] <- sapply(data[names(data)[grep(".Time", names(data))]], as.difftime, format = "%H:%M", units = "mins")
+
+# Coerce all of the "<image>.Warn" vectors to factors
+data[names(data)[grep(".Warn", names(data))]] <- lapply(data[names(data)[grep(".Warn", names(data))]], as.factor)
+
+data$State <- as.factor(data$State)
+data$StatePlace <- as.integer(data$StatePlace)
+data$TeamName <- as.factor(data$TeamName)
+data$TeamNumber <- as.factor(data$TeamNumber)
+data$Tier <- as.factor(data$Tier)
+
+# Remove unused columns (i.e. in this particular analysis)
+data$Tier <- NULL
+data$Division <- NULL
+
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+
+
+
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+```{r eruptions, echo=FALSE}
+inputPanel(
+  selectInput("n_breaks", label = "Number of bins:",
+              choices = c(10, 20, 35, 50), selected = 20),
+  
+  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
+              min = 0.2, max = 2, value = 1, step = 0.2)
+)
+
+renderPlot({
+  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
+       xlab = "Duration (minutes)", main = "Geyser eruption duration")
+  
+  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
+  lines(dens, col = "blue")
+})
+```
+
+## Embedded Application
+
+It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+
+```{r tabsets, echo=FALSE}
+shinyAppDir(
+  system.file("examples/06_tabsets", package = "shiny"),
+  options = list(
+    width = "100%", height = 550
+  )
+)
+```
+
+Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+
+You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+
+In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+
+
+
