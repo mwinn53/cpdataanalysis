@@ -16,6 +16,7 @@ knitr::opts_chunk$set(fig.width=10,
 require(ggplot2)
 require(psych)
 require(dplyr)
+require(Hmisc)
 
 colMax <- function(i) sapply(i, max, na.rm = TRUE)
 
@@ -61,10 +62,23 @@ data$Division <- NULL
 
 ```
 
-# Analysis should include
+# Analysis of Cyber Patriot State Round scores
+
+## INTRODUCTION
+The National Youth Cyber Defense Competition is the centerpiece of the Cyberpatriot program. The competition puts teams of high school and middle school students in the position of newly hired IT professionals tasked with managing the network of a small company. In the rounds of competition, teams are given a set of virtual images that represent operating systems and are tasked with finding cybersecurity vulnerabilities within the images and hardening the system while maintaining critical services. Teams compete during a six hour period for the top placement within their state and region. The state competiion took place on January 19-21, 2018. The top half of teams in each state progresses to the state semi-final round (February 9-11), where the top 3 teams advance to the National Finals Competition in Baltimore, MD. The top national teams can earn national recognition and scholarship money.
+
+Evans Middle School started competing this year with two teams of 5 students each. The Tax Collectors (10-4784) and Users Unknown (10-4785). The following analysis compares both teams' performance among the local, state, and national results from the state roudn in order to develop  strategic insights. Such insights can influence the coach and mentors to focus training materials in a way that increases the teams' competitiveness.
 
 ## DESCRIPTION 
-* Brief summary stats of the key fields in the analysis (teams, times, each of the images, etc.)
+
+During each round, the unofficial score are delivered in near-real time via the competition website (http://scoreboard.uscyberpatriot.org/). In addition to displaying key competition data, such as current score and elapsed time, a secondary link provides additional data, such as a break down of artifacts found, artifacts remaining, and score per image as well as any details on any penalties.
+
+After the state round, 
+
+``````{r summary, echo = FALSE, message = FALSE, warning = FALSE}
+  s
+
+```
 
 ## COMPETITION:
 * Overall completion (number and ratio) for each of the three images.
