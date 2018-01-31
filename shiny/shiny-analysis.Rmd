@@ -7,58 +7,74 @@ runtime: shiny
 ---
 
 ```{r input, echo = FALSE, message = FALSE, warning = FALSE}
-
-knitr::opts_chunk$set(fig.width=10, 
-                      fig.height=5,
-                      echo=FALSE,
-                      warning=FALSE)
-
-require(ggplot2)
-require(psych)
-require(dplyr)
-require(Hmisc)
-
-colMax <- function(i) sapply(i, max, na.rm = TRUE)
-
-files <- list.files(path=".", pattern="*.csv")
-
-data <- lapply(files, read.csv, sep=",", header=TRUE, stringsAsFactor = FALSE)
-data <- do.call("rbind", data)
-
-# Clean up the columns
-names(data)[names(data) == "X"] <- "line"
-
-names(data)[names(data) == "X.Warn"] <- "warn"
-data$warn <- as.factor(data$warn)
-
-data$OverallPlace <- as.integer(data$OverallPlace)
-
-data$Division <- as.factor(data$Division)
-
-data$OverallPlace <- as.integer(data$OverallPlace)
-
-data$PlayTime <- as.difftime(data$PlayTime, format = "%H:%M", units = "mins")
-
-# [TODO] Find a way to generalize the image names
-totals <- colMax(data[names(data)[grep(".Found$", names(data))]] +
-         data[names(data)[grep(".Remaining$", names(data))]])
-names(totals) <- gsub(x = names(totals), pattern = "Found", replacement = "Total") 
-
-# Formats all of the "<image>.Time" columns into minutes
-data[names(data)[grep(".Time", names(data))]] <- sapply(data[names(data)[grep(".Time", names(data))]], as.difftime, format = "%H:%M", units = "mins")
-
-# Coerce all of the "<image>.Warn" vectors to factors
-data[names(data)[grep(".Warn", names(data))]] <- lapply(data[names(data)[grep(".Warn", names(data))]], as.factor)
-
-data$State <- as.factor(data$State)
-data$StatePlace <- as.integer(data$StatePlace)
-data$TeamName <- as.factor(data$TeamName)
-data$TeamNumber <- as.factor(data$TeamNumber)
-data$Tier <- as.factor(data$Tier)
-
-# Remove unused columns (i.e. in this particular analysis)
-data$Tier <- NULL
-data$Division <- NULL
+  
+  knitr::opts_chunk$set(fig.width=10, fig.height=5, echo=FALSE, warning=FALSE)
+  
+  require(ggplot2)
+  require(psych)
+  require(dplyr)
+  require(scales)
+  
+  imagenames <- c("Windows Server 2008", "Ubuntu 14", "Windows 10")
+  teams <- c("10-4784", "10-4785")
+  
+  colMax <- function(i) sapply(i, max, na.rm = TRUE)
+  
+  files <- list.files(path=".", pattern="*.csv")
+  
+  data <- lapply(files, read.csv, sep=",", header=TRUE, stringsAsFactor = FALSE)
+  data <- do.call("rbind", data)
+  
+  # Clean up the columns
+  names(data)[names(data) == "X"] <- "line"
+  
+  names(data)[names(data) == "X.Warn"] <- "warn"
+  data$warn <- as.factor(data$warn)
+  
+  data$OverallPlace <- as.integer(data$OverallPlace)
+  
+  data$Division <- as.factor(data$Division)
+  
+  data$OverallPlace <- as.integer(data$OverallPlace)
+  
+  data$PlayTime <- as.difftime(data$PlayTime, format = "%H:%M", units = "mins")
+  
+  names(data) <- gsub(x = names(data), pattern = "_state_gsms.", replacement = ".")
+  names(data) <- gsub(x = names(data), pattern = "_state_sms.", replacement = ".")
+  
+  # Summarize the images and total artifacts
+  totals <- colMax(data[names(data)[grep(".Found$", names(data))]] +
+           data[names(data)[grep(".Remaining$", names(data))]])
+  names(totals) <- gsub(x = names(totals), pattern = "Found", replacement = "Total") 
+  names(totals) <- unlist(lapply(strsplit(names(totals), "_"), `[[`, 1))
+  
+  # Formats all of the "<image>.Time" columns into minutes
+  data[names(data)[grep(".Time", names(data))]] <- sapply(data[names(data)[grep(".Time", names(data))]], as.difftime, format = "%H:%M", units = "mins")
+  
+  # Coerce all of the "<image>.Warn" vectors to factors
+  data[names(data)[grep(".Warn", names(data))]] <- lapply(data[names(data)[grep(".Warn", names(data))]], as.factor)
+  
+  # Add the completion ratios to each team's scores
+  data$Server2008.Completion <- percent(data$Server2008.Found/totals[1])
+  data$Ubuntu14.Completion <- percent(data$Ubuntu14.Found/totals[2])
+  data$Windows10.Completion <- percent(data$Windows10.Found/totals[3])
+  
+  data$State <- as.factor(data$State)
+  data$StatePlace <- as.integer(data$StatePlace)
+  data$TeamName <- as.factor(data$TeamName)
+  data$TeamNumber <- as.factor(data$TeamNumber)
+  data$Tier <- as.factor(data$Tier)
+  
+  row.names(data) <- NULL
+  
+  # Remove unused columns (i.e. in this particular analysis)
+  data$Tier <- NULL
+  data$Division <- NULL
+  data$Ubuntu14.Total.1 <- NULL # Remove errant duplicate column
+  
+  top50 <- droplevels(data[data$OverallPlace >= 1 & data$OverallPlace <= 25,])
+  ga <- droplevels(data[data$State == "GA",])
+  cc <- droplevels(data[data$TeamName != "",])
 
 ```
 
@@ -67,23 +83,159 @@ data$Division <- NULL
 ## INTRODUCTION
 The National Youth Cyber Defense Competition is the centerpiece of the Cyberpatriot program. The competition puts teams of high school and middle school students in the position of newly hired IT professionals tasked with managing the network of a small company. In the rounds of competition, teams are given a set of virtual images that represent operating systems and are tasked with finding cybersecurity vulnerabilities within the images and hardening the system while maintaining critical services. Teams compete during a six hour period for the top placement within their state and region. The state competiion took place on January 19-21, 2018. The top half of teams in each state progresses to the state semi-final round (February 9-11), where the top 3 teams advance to the National Finals Competition in Baltimore, MD. The top national teams can earn national recognition and scholarship money.
 
-Evans Middle School started competing this year with two teams of 5 students each. The Tax Collectors (10-4784) and Users Unknown (10-4785). The following analysis compares both teams' performance among the local, state, and national results from the state roudn in order to develop  strategic insights. Such insights can influence the coach and mentors to focus training materials in a way that increases the teams' competitiveness.
+Evans Middle School started competing this year with two teams of 5 students each. The Evans Middle School teams are the ````Tax Collectors```` (```10-4784```) and ```Users Unknown``` (```10-4785```). They competed against a total of ```r nrow(data)``` teams in the nation, and ```r nrow(ga)``` in Georgia--```r nrow(cc)``` of which are from other Columbia County schools. 
+The following analysis compares both teams' performance among the national, state, and local results from the State round in order to develop strategic insights. Such insights can influence the coach and mentors to focus training materials in a way that increases the teams' competitiveness.
+
 
 ## DESCRIPTION 
 
-During each round, the unofficial score are delivered in near-real time via the competition website (http://scoreboard.uscyberpatriot.org/). In addition to displaying key competition data, such as current score and elapsed time, a secondary link provides additional data, such as a break down of artifacts found, artifacts remaining, and score per image as well as any details on any penalties.
+During each round, the unofficial score are delivered in near-real time via the competition website (```http://scoreboard.uscyberpatriot.org/```). The main page displays a table of key competition data, such as current score and elapsed time. In each row on the table, there is a secondary link that provides supplementary data, such as a the number of artifacts found, artifacts remaining, and score per image as well as details on any penalties.
 
-After the state round, 
+The state round featured ```r length(names(totals))``` images: ```r imagenames```. The table below shows the total number of artifacts available on each image.
 
-``````{r summary, echo = FALSE, message = FALSE, warning = FALSE}
-  s
-
+```{r imagesummary}
+  print(totals)
 ```
 
-## COMPETITION:
-* Overall completion (number and ratio) for each of the three images.
-* Comparison of the state, top 25, and bottom 25 among our results.
-* Which image has the lowest score among the best performers?
+## SCORING ANALYSIS 
+
+The overall results from the Evans Middle School teams are in the table below. _Note that the units for ```PlayTime``` fields are elapsed minutes since the scoring engine on the first image was initialized._
+
+### Team Results
+
+```{r myteamresults}
+  teams <- c("10-4784", "10-4785")
+  myteams <- droplevels(data[data$TeamNumber == teams,])
+  
+  vars <- c("TeamName", "ScoredImages", "StatePlace", "OverallPlace", "CurrentScore", "PlayTime")
+  print(myteams[vars], row.names = FALSE)
+  
+```
+
+In further detail, here are the team results for each of the images.
+
+#### Windows Server 2008:
+
+```{r myteam2008}
+  vars <- c("TeamName", "Server2008.Found", "Server2008.Completion", "Server2008.Score", "Server2008.Time")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  print(disp, row.names = FALSE)
+```
+
+#### Ubuntu 14:
+```{r myteamubuntu14}
+  vars <- c("TeamName", "Ubuntu14.Found", "Ubuntu14.Completion", "Ubuntu14.Score", "Ubuntu14.Time")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  print(disp, row.names = FALSE)
+```
+
+#### Windows 10
+```{r myteamwindows10}
+  vars <- c("TeamName", "Windows10.Found", "Windows10.Completion", "Windows10.Score", "Windows10.Time")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  print(disp, row.names = FALSE)
+```
+
+
+### Competition Results
+
+The analysis in this section presents the overall results of the State round. Then, the results of the Evans Middle School teams is compared against the national, state results, and the local community results.
+
+#### Top `r nrow(top50)` Teams
+```{r topnsummary}
+  # Extract the subsets of interest
+  nteams <- nrow(data)
+
+  vars <- c("TeamNumber", "TeamName", "OverallPlace", "State", "StatePlace", "CurrentScore")
+  print(top50[vars], row.names = FALSE)
+```
+
+### Scores from Georgia schools
+_NOTE: Teams with a "Team Name" are the Columbia County schools with Cyberpatriot teams._
+```{r statesummary}
+  vars <- c("TeamNumber", "TeamName", "StatePlace", "OverallPlace", "CurrentScore")
+  print(ga[vars], row.names = FALSE)
+```
+
+### Score Comparision
+
+The graphs below shows the distribution of teams per state, followed by a summary of each state's scores. The numbers along the bottom of the x-axis note the number of teams in each state. The horizontal dashed line represents the national median score (`r median(data$CurrentScore)`) Georgia is highlighted in blue for easy recognition.
+
+```{r stateteams}
+  stteams <- data.frame(table(data$State))
+  names(stteams) <- c("State", "Teams")
+  
+  print(
+    head(stteams[order(-stteams$Teams),],10)
+  )
+  
+  print(
+    ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
+      geom_bar(stat = "identity") +
+      ggtitle("Teams Density by State") + labs(x = "State", y = "Teams")
+  )
+```
+
+`**[RQ]** How does the per-state denisty of teams affect their overall competitiveness?`
+```{r score}
+  give.n <- function(x){
+  return(c(y = -10, label = length(x))) 
+  }
+
+  print(
+    ggplot(data, aes(State, CurrentScore)) +
+      geom_boxplot() +
+      ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
+      stat_summary(fun.data = give.n, geom = "text", position = position_dodge(width = 1), fun.y = median) +
+      geom_boxplot(data=data[data$State=="GA",], aes(State, CurrentScore),fill="blue") +
+      geom_line() + geom_hline(yintercept = median(data$CurrentScore), color="blue", lty=2)
+  )
+```
+
+This graph highlights the Evans Middle School teams' (blue) performance in relation to the teams in Georgia (grey) as well as the teams in Columbia County (red).
+
+```{r gascore}
+  print(
+    ggplot(data=data[data$State=="GA",], aes(State, CurrentScore)) +
+    geom_boxplot(outlier.size=0) +
+    geom_jitter(aes(State, CurrentScore),
+               position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE) +
+    geom_jitter(data=data[data$TeamName != "",], aes(State, CurrentScore),
+               position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "red") +
+    geom_jitter(data=data[data$TeamNumber == teams,], aes(State, CurrentScore),
+               position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "blue") +
+    xlab("Georgia Teams") +
+    ylab("Score") +
+    ggtitle("Performance of Georgia Teams")
+  )
+  
+```
+
+
+## COMPLETION ANALYSIS
+
+
+## IMAGE SCORE ANALYSIS
+
+
+
+
+
+
 
 ## OVERALL:
 * How are image scores distributed among common total scores?
