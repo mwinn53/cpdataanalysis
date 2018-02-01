@@ -14,6 +14,8 @@ runtime: shiny
   require(psych)
   require(dplyr)
   require(scales)
+  require(grid)
+  require(gridExtra)
   
   imagenames <- c("Windows Server 2008", "Ubuntu 14", "Windows 10")
   teams <- c("10-4784", "10-4785")
@@ -55,9 +57,9 @@ runtime: shiny
   data[names(data)[grep(".Warn", names(data))]] <- lapply(data[names(data)[grep(".Warn", names(data))]], as.factor)
   
   # Add the completion ratios to each team's scores
-  data$Server2008.Completion <- percent(data$Server2008.Found/totals[1])
-  data$Ubuntu14.Completion <- percent(data$Ubuntu14.Found/totals[2])
-  data$Windows10.Completion <- percent(data$Windows10.Found/totals[3])
+  data$Server2008.Completion <- data$Server2008.Found/totals[1]
+  data$Ubuntu14.Completion <- data$Ubuntu14.Found/totals[2]
+  data$Windows10.Completion <- data$Windows10.Found/totals[3]
   
   data$State <- as.factor(data$State)
   data$StatePlace <- as.integer(data$StatePlace)
@@ -162,57 +164,52 @@ _NOTE: Teams with a "Team Name" are the Columbia County schools with Cyberpatrio
 
 ### Score Comparision
 
-The graphs below shows the distribution of teams per state, followed by a summary of each state's scores. The numbers along the bottom of the x-axis note the number of teams in each state. The horizontal dashed line represents the national median score (`r median(data$CurrentScore)`) Georgia is highlighted in blue for easy recognition.
+The graphs below shows the distribution of teams per state, followed by a summary of each state's scores. The nuxmbers along the bottom of the x-axis note the number of teams in each state. The horizontal dashed line represents the national median score (`r median(data$CurrentScore)`) Georgia is highlighted in blue for easy recognition.
 
 ```{r stateteams}
   stteams <- data.frame(table(data$State))
   names(stteams) <- c("State", "Teams")
   
-  print(
-    head(stteams[order(-stteams$Teams),],10)
-  )
+  p1 <- tableGrob(head(stteams[order(-stteams$Teams),],10), rows = NULL)
   
-  print(
-    ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
+  p2 <- ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
       geom_bar(stat = "identity") +
-      ggtitle("Teams Density by State") + labs(x = "State", y = "Teams")
-  )
+      labs(x = "State", y = "Teams")
+
+  grid.arrange(p1, p2, ncol = 2, top = "Team Desnsity by State", widths = c(1, 4))
 ```
 
+_This graph highlights the Evans Middle School teams' (blue) performance in relation to the teams in Georgia (grey) as well as the teams in Columbia County (red)._
+
 `**[RQ]** How does the per-state denisty of teams affect their overall competitiveness?`
+`**[A]** Look at correlation between Teams per State vs. Overall Score`
+
 ```{r score}
   give.n <- function(x){
   return(c(y = -10, label = length(x))) 
   }
 
-  print(
-    ggplot(data, aes(State, CurrentScore)) +
-      geom_boxplot() +
-      ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
-      stat_summary(fun.data = give.n, geom = "text", position = position_dodge(width = 1), fun.y = median) +
-      geom_boxplot(data=data[data$State=="GA",], aes(State, CurrentScore),fill="blue") +
-      geom_line() + geom_hline(yintercept = median(data$CurrentScore), color="blue", lty=2)
-  )
-```
-
-This graph highlights the Evans Middle School teams' (blue) performance in relation to the teams in Georgia (grey) as well as the teams in Columbia County (red).
-
-```{r gascore}
-  print(
-    ggplot(data=data[data$State=="GA",], aes(State, CurrentScore)) +
-    geom_boxplot(outlier.size=0) +
-    geom_jitter(aes(State, CurrentScore),
-               position=position_jitter(width=0.1,height=0.1),
-               alpha=0.6,
-               size=3,
-               show.legend = FALSE) +
-    geom_jitter(data=data[data$TeamName != "",], aes(State, CurrentScore),
-               position=position_jitter(width=0.1,height=0.1),
-               alpha=0.6,
-               size=3,
-               show.legend = FALSE,
-               color = "red") +
-    geom_jitter(data=data[data$TeamNumber == teams,], aes(State, CurrentScore),
+  p1 <- ggplot(data, aes(State, CurrentScore)) +
+    geom_boxplot() +
+    ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
+    stat_summary(fun.data = give.n, geom = "text", position = position_dodge(width = 1), fun.y = median) +
+    geom_boxplot(data=data[data$State=="GA",], aes(State, CurrentScore),fill="blue") +
+    geom_line() + geom_hline(yintercept = median(data$CurrentScore), color="blue", lty=2)
+    
+  p2 <- ggplot(data=data[data$State=="GA",], aes(State, CurrentScore)) +
+      geom_boxplot(outlier.size=0) +
+      geom_jitter(aes(State, CurrentScore),
+             position=position_jitter(width=0.1,height=0.1),
+             alpha=0.6,
+             size=3,
+             show.legend = FALSE) +
+      geom_jitter(data=data[data$TeamName != "",], aes(State, CurrentScore),
+             position=position_jitter(width=0.1,height=0.1),
+             alpha=0.6,
+             size=3,
+             show.legend = FALSE,
+             color = "red") +
+      geom_jitter(data=data[data$TeamNumber == teams,], aes(State, CurrentScore),
                position=position_jitter(width=0.1,height=0.1),
                alpha=0.6,
                size=3,
@@ -220,14 +217,22 @@ This graph highlights the Evans Middle School teams' (blue) performance in relat
                color = "blue") +
     xlab("Georgia Teams") +
     ylab("Score") +
-    ggtitle("Performance of Georgia Teams")
-  )
-  
+    ggtitle("GA Teams")
+    
+    grid.arrange(p1, p2, ncol = 2, top = "Score Analysis", widths = c(5, 1))
 ```
 
 
 ## COMPLETION ANALYSIS
+```{r completion}
+  # d <- data[,31:33]
+  # ggplot(d) +
+  #     geom_boxplot() +
+  #     ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
+  #     xlab("Image") +
+  #     ylab("%")
 
+```
 
 ## IMAGE SCORE ANALYSIS
 
