@@ -1,14 +1,15 @@
 ---
-title: "cpsbanalysis"
+title: "Analysis of Cyber Patriot State Round scores"
 author: "mw"
 date: "January 26, 2018"
 output: html_document
 runtime: shiny
 ---
 
+# Code setup
 ```{r input, echo = FALSE, message = FALSE, warning = FALSE}
   
-  knitr::opts_chunk$set(fig.width=10, fig.height=5, echo=FALSE, warning=FALSE)
+  knitr::opts_chunk$set(fig.width=10, fig.height=6, echo=FALSE, warning=FALSE)
   
   require(ggplot2)
   require(psych)
@@ -16,6 +17,8 @@ runtime: shiny
   require(scales)
   require(grid)
   require(gridExtra)
+  require(reshape2)
+
   
   imagenames <- c("Windows Server 2008", "Ubuntu 14", "Windows 10")
   teams <- c("10-4784", "10-4785")
@@ -77,112 +80,100 @@ runtime: shiny
   top50 <- droplevels(data[data$OverallPlace >= 1 & data$OverallPlace <= 25,])
   ga <- droplevels(data[data$State == "GA",])
   cc <- droplevels(data[data$TeamName != "",])
+  
+  nteams <- nrow(data)
+  myteams <- droplevels(data[data$TeamNumber == teams,])
 
 ```
 
-# Analysis of Cyber Patriot State Round scores
+# INTRODUCTION
+The National Youth Cyber Defense Competition is the centerpiece of the Cyberpatriot program. Teams compete by finding cybersecurity vulnerabilities on a set of virtual images, then fixing them while maintaining critical services. Teams compete during a six hour period for the top placement within their state and region. The state competiion took place on January 19-21, 2018. The top half of teams in each state progresses to the state semi-final round (February 9-11), where the top 3 teams advance to the National Finals Competition in Baltimore, MD. 
 
-## INTRODUCTION
-The National Youth Cyber Defense Competition is the centerpiece of the Cyberpatriot program. The competition puts teams of high school and middle school students in the position of newly hired IT professionals tasked with managing the network of a small company. In the rounds of competition, teams are given a set of virtual images that represent operating systems and are tasked with finding cybersecurity vulnerabilities within the images and hardening the system while maintaining critical services. Teams compete during a six hour period for the top placement within their state and region. The state competiion took place on January 19-21, 2018. The top half of teams in each state progresses to the state semi-final round (February 9-11), where the top 3 teams advance to the National Finals Competition in Baltimore, MD. The top national teams can earn national recognition and scholarship money.
+Evans Middle School started competing this year with two teams of 5 students each. The Evans Middle School teams are the *````Tax Collectors````* (```10-4784```) and *```Users Unknown```* (```10-4785```). Both teams competed against a total of ```r nrow(data)``` teams in the nation, and ```r nrow(ga)``` in Georgia--```r nrow(cc)``` of which are from other Columbia County schools. 
 
-Evans Middle School started competing this year with two teams of 5 students each. The Evans Middle School teams are the ````Tax Collectors```` (```10-4784```) and ```Users Unknown``` (```10-4785```). They competed against a total of ```r nrow(data)``` teams in the nation, and ```r nrow(ga)``` in Georgia--```r nrow(cc)``` of which are from other Columbia County schools. 
 The following analysis compares both teams' performance among the national, state, and local results from the State round in order to develop strategic insights. Such insights can influence the coach and mentors to focus training materials in a way that increases the teams' competitiveness.
 
 
-## DESCRIPTION 
+# DESCRIPTION 
 
 During each round, the unofficial score are delivered in near-real time via the competition website (```http://scoreboard.uscyberpatriot.org/```). The main page displays a table of key competition data, such as current score and elapsed time. In each row on the table, there is a secondary link that provides supplementary data, such as a the number of artifacts found, artifacts remaining, and score per image as well as details on any penalties.
 
-The state round featured ```r length(names(totals))``` images: ```r imagenames```. The table below shows the total number of artifacts available on each image.
+The state round featured ```r length(names(totals))``` images: ```r imagenames```. The table below shows the total number of scored artifacts available on each image during this round.
 
-```{r imagesummary}
+```{r imagesummary, tidy=TRUE}
   print(totals)
 ```
 
-## SCORING ANALYSIS 
+# SCORING ANALYSIS 
 
-The overall results from the Evans Middle School teams are in the table below. _Note that the units for ```PlayTime``` fields are elapsed minutes since the scoring engine on the first image was initialized._
+The overall results from the Evans Middle School teams are in the table below. _Note that the units for ```PlayTime``` fields are elapsed minutes since the image was initialized. Teams have six continuous hours (i.e., 300 minutes) and must officially close their image before the deadline to avoid a penalty._
 
-### Team Results
+## Team Results
 
 ```{r myteamresults}
-  teams <- c("10-4784", "10-4785")
-  myteams <- droplevels(data[data$TeamNumber == teams,])
-  
   vars <- c("TeamName", "ScoredImages", "StatePlace", "OverallPlace", "CurrentScore", "PlayTime")
   print(myteams[vars], row.names = FALSE)
-  
 ```
 
-In further detail, here are the team results for each of the images.
+The following tables summarize the team results for each of the images. More detailed analysis is included in the _Completion Analysis_ section, later in this document.
 
-#### Windows Server 2008:
+### Windows Server 2008 (`r totals[["Server2008.Total"]]`):
 
 ```{r myteam2008}
   vars <- c("TeamName", "Server2008.Found", "Server2008.Completion", "Server2008.Score", "Server2008.Time")
   disp <- myteams[vars]
   names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
   print(disp, row.names = FALSE)
 ```
 
-#### Ubuntu 14:
+### Ubuntu 14 (`r totals[["Ubuntu14.Total"]]`):
 ```{r myteamubuntu14}
   vars <- c("TeamName", "Ubuntu14.Found", "Ubuntu14.Completion", "Ubuntu14.Score", "Ubuntu14.Time")
   disp <- myteams[vars]
   names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
   print(disp, row.names = FALSE)
 ```
 
-#### Windows 10
+### Windows 10 (`r totals[["Windows10.Total"]]`)
 ```{r myteamwindows10}
   vars <- c("TeamName", "Windows10.Found", "Windows10.Completion", "Windows10.Score", "Windows10.Time")
   disp <- myteams[vars]
   names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
   print(disp, row.names = FALSE)
 ```
 
 
-### Competition Results
+## Competition Results
 
 The analysis in this section presents the overall results of the State round. Then, the results of the Evans Middle School teams is compared against the national, state results, and the local community results.
 
-#### Top `r nrow(top50)` Teams
+### Top `n` Teams
 ```{r topnsummary}
   # Extract the subsets of interest
-  nteams <- nrow(data)
-
-  vars <- c("TeamNumber", "TeamName", "OverallPlace", "State", "StatePlace", "CurrentScore")
-  print(top50[vars], row.names = FALSE)
+  numericInput("rows", "How many Teams?", 25)
+  
+  renderTable({
+    vars <- c("TeamNumber", "State", "StatePlace", "CurrentScore")
+    head(data[vars], input$rows)
+  })
 ```
 
-### Scores from Georgia schools
-_NOTE: Teams with a "Team Name" are the Columbia County schools with Cyberpatriot teams._
+## Scores from Georgia schools
+_NOTE: Teams with a `TeamName` are the Columbia County schools with Cyberpatriot teams._
 ```{r statesummary}
-  vars <- c("TeamNumber", "TeamName", "StatePlace", "OverallPlace", "CurrentScore")
-  print(ga[vars], row.names = FALSE)
+  renderTable({
+    vars <- c("TeamNumber", "TeamName", "StatePlace", "OverallPlace", "CurrentScore")
+    head(ga[vars], nrow(ga))  
+  }, row.names = FALSE)
+  
 ```
 
-### Score Comparision
+## Score Comparision
 
-The graphs below shows the distribution of teams per state, followed by a summary of each state's scores. The nuxmbers along the bottom of the x-axis note the number of teams in each state. The horizontal dashed line represents the national median score (`r median(data$CurrentScore)`) Georgia is highlighted in blue for easy recognition.
-
-```{r stateteams}
-  stteams <- data.frame(table(data$State))
-  names(stteams) <- c("State", "Teams")
-  
-  p1 <- tableGrob(head(stteams[order(-stteams$Teams),],10), rows = NULL)
-  
-  p2 <- ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
-      geom_bar(stat = "identity") +
-      labs(x = "State", y = "Teams")
-
-  grid.arrange(p1, p2, ncol = 2, top = "Team Desnsity by State", widths = c(1, 4))
-```
-
-_This graph highlights the Evans Middle School teams' (blue) performance in relation to the teams in Georgia (grey) as well as the teams in Columbia County (red)._
-
-`**[RQ]** How does the per-state denisty of teams affect their overall competitiveness?`
-`**[A]** Look at correlation between Teams per State vs. Overall Score`
+The plots below summarizes the unofficial scores by state. The numbers along the bottom of the x-axis note the number of teams in each state. The horizontal dashed line represents the national median score (`r median(data$CurrentScore)`). The colors on the plot highlight the significant information. The blue highlights represent Georgia on the left plot, and the Columbia County Middle Schools on the right plot. Additionally, the Evans Middle School teams are highlighted in red on the right plot.
 
 ```{r score}
   give.n <- function(x){
@@ -208,95 +199,156 @@ _This graph highlights the Evans Middle School teams' (blue) performance in rela
              alpha=0.6,
              size=3,
              show.legend = FALSE,
-             color = "red") +
+             color = "blue") +
       geom_jitter(data=data[data$TeamNumber == teams,], aes(State, CurrentScore),
                position=position_jitter(width=0.1,height=0.1),
                alpha=0.6,
                size=3,
                show.legend = FALSE,
-               color = "blue") +
+               color = "red") +
     xlab("Georgia Teams") +
     ylab("Score") +
     ggtitle("GA Teams")
     
     grid.arrange(p1, p2, ncol = 2, top = "Score Analysis", widths = c(5, 1))
+    
+    dens <- data %>% group_by(State) %>% summarise(nteams = n(), medianscore = median(CurrentScore))
+```
+
+### Impact on Team Density to Overall Scores
+
+```{r stateteams}
+  stteams <- data.frame(table(data$State))
+  names(stteams) <- c("State", "Teams")
+  
+  p1 <- tableGrob(head(stteams[order(-stteams$Teams),],10), rows = NULL)
+  
+  p2 <- ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
+      geom_bar(stat = "identity") +
+      labs(x = "State", y = "Teams")
+
+  grid.arrange(p1, p2, ncol = 2, top = "Team Density by State", widths = c(1, 4))
 ```
 
 
-## COMPLETION ANALYSIS
+A total of ```r nrow(dens)``` states and countries participated in this round. The table of diagnotic statistics below shows that each state has a large range of the number of teams as well and overall scores. While it may seem intuitive that states with more teams lead to better overall scores, a comparison of the number of teams in each state against the state's median score reveals that there is very little relationship (the correlation coefficient is ```r round(cor(dens$nteams, dens$medianscore), 4)``` between the two.
+
+```{r teamdensitystats}
+  d <- describeBy(dens[c(-1)])
+  print(d[,c(-1,-6,-7)], row.names = FALSE)
+```
+
+As illustrated in the plot below, the states with the highest overall scores tend to have very few teams, while the states with the most teams trend widely either above or below the overall median. 
+
+```{r teamdensity}
+  p1 <- ggplot(dens, aes(x = "", y = nteams)) + 
+    geom_boxplot() + 
+    labs(x = "", y = "Overall Number of Teams")
+
+  p2 <- ggplot(dens, aes(x = nteams, y = medianscore)) + 
+  geom_point(aes(colour = ifelse((dens$State == "GA" | dens$nteams == max(dens$nteams) | dens$medianscore == max(dens$medianscore)), "black", "red")))+
+  geom_text(aes(label = ifelse((dens$State == "GA" | dens$nteams == max(dens$nteams) | dens$medianscore == max(dens$medianscore)), paste0(as.character(State), "(", as.character(nteams),")"), "")), hjust = 1, vjust = -0.75, size = 3)+
+  theme(legend.position = "none") +
+  annotate("text", label = paste0("cor = ", round(cor(dens$nteams, dens$medianscore), 4)), x = 100, y = 0) +
+  geom_hline(yintercept = median(data$CurrentScore), color= "blue", lty=2) + 
+  labs(x = "Number of teams", y = "Median Score")
+  
+  grid.arrange(p1, p2, ncol = 2, top = "Team Density Analysis", widths = c(1, 5))
+```
+_NOTE: Each point represents a State's median score in relation to the number of teams in that state. Therefore, the horizontal blue dashed line represents the median of the overall scores, and not the median of the points represented in the plot (i.e., the median of medians)._
+
+# COMPLETION ANALYSIS
+
+```{r completionsetup}
+  d <- data.frame(table(data$ScoredImages))
+  names(d) <- c("Scored Images", "Teams")
+```
+
+The Evans Middle School teams attempted all three of the competition images, consistent with ```r percent(d$Teams[3]/nrow(data))``` of the teams in the competition. In contrast, ```r d$Teams[1] + d$Teams[2]``` teams or ```r percent((d$Teams[1] + d$Teams[2])/nrow(data))``` (including ```r nrow(droplevels(ga[ga$ScoredImages < 3,]))``` in Georgia) attempted less than three images. The teams that did not attempt all three images ended up placing between ```r min(data[data$ScoredImages < 3,]$OverallPlace)``` and ```r max(data[data$ScoredImages < 3,]$OverallPlace)```.
+
+The plot below shows a large variation among the scores with teams that attempted all three images. However, the scores of the teams that did not attempt all three images are not competitive.
+
+```{r attempts}
+
+  ggplot(data, aes(x=ScoredImages, y = CurrentScore)) + 
+  geom_boxplot(aes(group=ScoredImages)) + 
+  geom_jitter(color = "grey50") +
+
+      geom_jitter(data=data[data$TeamName != "",], aes(ScoredImages, CurrentScore),
+             position=position_jitter(width=0.05,height=0.1),
+             alpha=0.6,
+             size=3,
+             show.legend = FALSE,
+             color = "blue") +
+      geom_jitter(data=data[data$TeamNumber == teams,], aes(ScoredImages, CurrentScore),
+               position=position_jitter(width=0.05,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "red") +
+      ggtitle("Scores per Images") + labs(x = "Attempted Images", y = "Score")
+
+```
+
+The plots below show the ratio of artifacts found compared to number of total artifacts on each image. Note that a ratio is used (i.e., instead of number of artifacts found) in order to compare the three images that have different numbers of available artifacts. Both of the Evans Middle School teams completed more on each image than the nationwide median. More specifically, both teams had a significantly higher completion ratio on the Windows 10 images. The ```Tax Collectors``` had a significantly higher completion ratio on the Windows Server 2008 image, while ```Users Unknown``` had a significantly higher completion ratio on the Ubuntu 14 image.
+
 ```{r completion}
-  # d <- data[,31:33]
-  # ggplot(d) +
-  #     geom_boxplot() +
-  #     ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
-  #     xlab("Image") +
-  #     ylab("%")
-
-```
-
-## IMAGE SCORE ANALYSIS
-
-
-
-
-
-
-
-## OVERALL:
-* How are image scores distributed among common total scores?
-* How do penalties influence the image/total scores?
-* How much time do team spend on images with common scores?
-
-
-
-This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
-
-To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
-
-
-
-
-
-## Inputs and Outputs
-
-You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
-
-```{r eruptions, echo=FALSE}
-inputPanel(
-  selectInput("n_breaks", label = "Number of bins:",
-              choices = c(10, 20, 35, 50), selected = 20),
+  d <- data[,c(17, 31:33)]
+  d <- melt(data = d, id.vars = "TeamNumber", measure.vars = c("Server2008.Completion", "Ubuntu14.Completion", "Windows10.Completion" ))
+  d$variable <- gsub(".Completion", "", d$variable)
+  names(d) <- c("Teams", "Image", "Complete")
   
-  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
-              min = 0.2, max = 2, value = 1, step = 0.2)
-)
-
-renderPlot({
-  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
-       xlab = "Duration (minutes)", main = "Geyser eruption duration")
+  db <- describeBy(d[3], group = d$Image, mat = TRUE, digits = 2)
   
-  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
-  lines(dens, col = "blue")
-})
+  print(db[,c(-1,-3,-8,-9)], row.names = FALSE)
+  
+  ggplot(d, aes(x=Image, y = Complete)) +
+      geom_boxplot() +
+    
+      geom_jitter(data=d[d$Teams %in% ga$TeamNumber,], aes(Image, Complete),
+               position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "blue") +
+
+      geom_jitter(data=d[d$Teams %in% teams,], aes(Image, Complete),
+         position=position_jitter(width=0.1,height=0.1),
+         alpha=0.6,
+         size=3,
+         show.legend = FALSE,
+         color = "red") +
+    
+      ggtitle("Overall Completion Rates per Image") + labs(x = "State", y = "Score") +
+      ylab("% Complete")
 ```
 
-## Embedded Application
 
-It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+# IMAGE SCORE ANALYSIS
 
-```{r tabsets, echo=FALSE}
-shinyAppDir(
-  system.file("examples/06_tabsets", package = "shiny"),
-  options = list(
-    width = "100%", height = 550
-  )
-)
+
+```{r imagescore}
+  g1 <- ggplot(data, aes(Server2008.Found)) + geom_bar() +
+  geom_bar(data=data[data$State=="GA",], aes(Server2008.Found),fill="blue") +
+  geom_bar(data=data[data$TeamNumber == teams,], aes(Server2008.Found),fill="red", width = 1)
+
+# aes(fill = ifelse(data[data$TeamNumber %in% teams,]$Server2008.Found, "grey50", "red"))
+
+  g2 <- ggplot(data, aes(Ubuntu14.Found)) + geom_bar() +
+    geom_bar(data=data[data$State=="GA",], aes(Ubuntu14.Found),fill="blue") +
+    geom_bar(data=data[data$TeamNumber == teams,], aes(Ubuntu14.Found),fill="red", width = 1)
+  
+  g3 <- ggplot(data, aes(Windows10.Found)) + geom_bar() + 
+      geom_bar(data=data[data$State=="GA",], aes(Windows10.Found),fill="blue") +
+    geom_bar(data=data[data$TeamNumber == teams,], aes(Windows10.Found),fill="red", width = 1)
+    
+  grid.arrange(g1, g2, g3, ncol = 3, top = "Frequency of Finds per Image")
+
+
+
 ```
 
-Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
 
-You can also use the `shinyApp` function to define an application inline rather then in an external directory.
-
-In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
-
-
-
+# CONCLUSIONS
+* The number of teams that compete in a given state does not necessarily have a positive effect on overall scores. In fact, the states with between ```2``` and ```12``` teams appear the most competitive.
+* Teams that do not attempt all three images will not be competitive, though attempting all three images does not necessarily guarantee high placement.
