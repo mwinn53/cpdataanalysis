@@ -31,7 +31,7 @@ def main():
                     row[r.Image + '-' + r.index[c]] = r.values[c]
         newtable = newtable.append(row)
 
-        # [TODO] Grab all of the time series data from
+        # [TODO] Grab all of the time series data from the second portion of the php page.
 
 
 
