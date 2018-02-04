@@ -350,5 +350,8 @@ The plots below show the ratio of artifacts found compared to number of total ar
 
 
 # CONCLUSIONS
+* Compared to the National and State teams, both of the Evans Middle School teams are very competitve on the Windows Client images (i.e., Windows 10). 
+    + The Tax Collectors had a significantly higher completion ratio on the Windows Server image.
+    + Users Unknown had a significantly higher completion ratio on the Ubuntu 14 image.
 * The number of teams that compete in a given state does not necessarily have a positive effect on overall scores. In fact, the states with between ```2``` and ```12``` teams appear the most competitive.
 * Teams that do not attempt all three images will not be competitive, though attempting all three images does not necessarily guarantee high placement.

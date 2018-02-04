@@ -78,7 +78,7 @@ class CPTableParser:
             if len(columns) > 0:
                 row_marker += 1
 
-        # Convert numberical columns to integers if possible
+        # Convert numerical columns to integers if possible
         for col in df:
             try:
                 df[col] = df[col].astype(int)
@@ -134,6 +134,7 @@ def getmaintable(url, afile):
     # scrape the main table from the scoreboard, enrich and store as a pandas datatable
     cb = CPTableParser()
     response = None
+    table = []
 
     while not response:
         # Handle the condition when the site is not providing a score table
@@ -141,12 +142,14 @@ def getmaintable(url, afile):
             response = time.time()
             table = cb.parse_url(url)[0][1]  # Extract the table from the tuple
 
-        except IndexError as e:
+        except (IndexError, UnboundLocalError) as e:
             delay = (10*random()) * (time.time() - response)
             if delay < 1 or delay > 60:
-                delay = refresh*random()
+                delay = 60*random()
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
+            response = None
+            continue
 
     # Extracts the header names from the first row & removes the first row
     table.columns = list(table.iloc[0])

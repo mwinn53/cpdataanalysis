@@ -5,6 +5,7 @@ from random import randint
 
 def main():
 
+    # [TODO]
     url = 'http://scoreboard.uscyberpatriot.org/index.php?division=Middle%20School'
     afile = 'lookups'
     ofile = 'output.csv'
@@ -21,6 +22,7 @@ def main():
 
         tmtbl = cp.getteamtable(tmurl)
 
+        # [TODO] Implement threading to reduce time to fetch the stats
         for i, r in tmtbl.iterrows():
             for c in range(len(r.index)):
                 if r.index[c] == 'Image':
@@ -30,6 +32,8 @@ def main():
         newtable = newtable.append(row)
 
         # [TODO] Grab all of the time series data from
+
+
 
         wait = randint(3, 7)
         time.sleep(wait)
