@@ -3,6 +3,7 @@ import os
 import requests
 import time
 from random import random
+import re
 
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -34,8 +35,15 @@ class CPTableParser:
 
         soup = BeautifulSoup(response.text, 'lxml')
 
-        return [(0, self.parse_html_table(table)) for table in
+        ## [TODO] Need to include opportunity to parse graph data as well
+
+        r = [(0, self.parse_html_table(table)) for table in
                 soup.find_all('table')]
+
+        r.append([(0, self.parse_graph(script)) for script in
+                soup.find_all('script')])
+
+        return r
 
     def parse_html_table(self, table):
         n_columns = 0
@@ -86,6 +94,26 @@ class CPTableParser:
                 pass
 
         return df
+
+    def parse_graph(self, script):
+        s = str(script)
+        s = s[s.find("([") + 3:s.find("])") - 7].replace('\r\n', '')
+        s = re.findall('\[(.*?)\]', s)
+
+        if not s:
+            return None
+
+        s = [i.split(', ') for i in s]
+
+        headers = s.pop(0)
+        headers = [h.replace("'", "") for h in headers]
+
+        f = pd.DataFrame(s, columns = headers)
+
+        # Clean up data types
+        f['Time'] = pd.to_datetime(f['Time'], format="'%m/%d %H:%M'")
+
+        return f
 
 def addplaces(tbl):
     # add the overall place as a column so that each row can be tracked
@@ -182,7 +210,9 @@ def getteamtable(url):
         # Handle the condition when the site is not providing a score table
         try:
             response = time.time()
-            table = cb.parse_url(url)[1][1]  # Extract the table from the tuple
+            tup = cb.parse_url(url)  # Extract the table from the tuple
+            table = tup[1][1]
+            graph = tup[1][2]
 
         except IndexError as e:
             delay = (10*random()) * (time.time() - response)
@@ -198,4 +228,4 @@ def getteamtable(url):
     # Renames the 'unfriendly' titles
     table.rename(columns={'*Warn': 'Warn'}, inplace=True)
 
-    return table
+    return table, graph

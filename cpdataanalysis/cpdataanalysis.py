@@ -18,11 +18,11 @@ def main():
     for index, row in maintable.iterrows():
         tnum = row['TeamNumber']
         print("\t[{} of {}] Fetching {}...".format(index, len(maintable.index), tnum))
-        tmurl = "http://scoreboard.uscyberpatriot.org/team.php?team=" + row['TeamNumber']
+        tmurl = "http://scoreboard.uscyberpatriot.org/team.php?team=" + tnum
 
-        tmtbl = cp.getteamtable(tmurl)
+        # [TODO] Implement queued threading to reduce time to fetch the stats
+        tmtbl, tmgraph = cp.getteamtable(tmurl)
 
-        # [TODO] Implement threading to reduce time to fetch the stats
         for i, r in tmtbl.iterrows():
             for c in range(len(r.index)):
                 if r.index[c] == 'Image':
@@ -31,14 +31,14 @@ def main():
                     row[r.Image + '-' + r.index[c]] = r.values[c]
         newtable = newtable.append(row)
 
-        # [TODO] Grab all of the time series data from the second portion of the php page.
-
-
+        tmgraph['Team'] = tnum
 
         wait = randint(3, 7)
         time.sleep(wait)
 
         newtable.to_csv(ofile, sep=',')
+
+        tmgraph.to_csv(ofile + 'times', sep=',')
 
     # [TODO] All new fields are 'char'; set fields to the appropriate data types (i.e., 'int')
 
