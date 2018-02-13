@@ -40,7 +40,7 @@ class CPTableParser:
         r = [(0, self.parse_html_table(table)) for table in
                 soup.find_all('table')]
 
-        r.append([(0, self.parse_graph(script)) for script in
+        r = r + ([(0, self.parse_graph(script)) for script in
                 soup.find_all('script')])
 
         return r
@@ -105,6 +105,7 @@ class CPTableParser:
 
         s = [i.split(', ') for i in s]
 
+        # Build the dataframe
         headers = s.pop(0)
         headers = [h.replace("'", "") for h in headers]
 
@@ -173,7 +174,7 @@ def getmaintable(url, afile):
         except (IndexError, UnboundLocalError) as e:
             delay = (10*random()) * (time.time() - response)
             if delay < 1 or delay > 60:
-                delay = 60*random()
+                delay = 60 * random()
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
             response = None
@@ -212,18 +213,18 @@ def getteamtable(url):
             response = time.time()
             tup = cb.parse_url(url)  # Extract the table from the tuple
             table = tup[1][1]
-            graph = tup[1][2]
+            graph = tup[3][1]
 
-        except IndexError as e:
+        except (IndexError, UnboundLocalError) as e:
             delay = (10*random()) * (time.time() - response)
             if delay < 1 or delay > 60:
-                delay = refresh*random()
+                delay = 60 * random()
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
 
     # Extracts the header names from the first row & removes the first row
     table.columns = list(table.iloc[0])
-    table = table[1:]
+    table = table.iloc[1:]
 
     # Renames the 'unfriendly' titles
     table.rename(columns={'*Warn': 'Warn'}, inplace=True)

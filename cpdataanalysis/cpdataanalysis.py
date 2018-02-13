@@ -2,18 +2,20 @@ import cpsbimports as cp
 import pandas as pd
 import time
 from random import randint
+import os.path
 
 def main():
 
-    # [TODO]
+    # [TODO] Create command line args
     url = 'http://scoreboard.uscyberpatriot.org/index.php?division=Middle%20School'
     afile = 'lookups'
-    ofile = 'output.csv'
+    ofile = 'output'
 
     maintable= cp.getmaintable(url, afile)
     print('Retreived the main table. There are {} records.'.format(len(maintable.index)))
 
     newtable = pd.DataFrame()
+
     #  for each team in the table, navigate to the 'details' URL
     for index, row in maintable.iterrows():
         tnum = row['TeamNumber']
@@ -36,12 +38,19 @@ def main():
         wait = randint(3, 7)
         time.sleep(wait)
 
-        newtable.to_csv(ofile, sep=',')
+        fname = ofile + '.csv'
+        if os.path.exists(fname):
+            newtable.to_csv(fname, sep=',', mode = 'a', header = False)
+        else:
+            newtable.to_csv(fname + '.csv', sep=',')
 
-        tmgraph.to_csv(ofile + 'times', sep=',')
+        fname = ofile + '_times.csv'
+        if os.path.exists(fname):
+            tmgraph.to_csv(fname, sep=',', mode = 'a', header = False)
+        else:
+            tmgraph.to_csv(fname, sep=',')
 
     # [TODO] All new fields are 'char'; set fields to the appropriate data types (i.e., 'int')
-
 
 
 if __name__ == "__main__":
