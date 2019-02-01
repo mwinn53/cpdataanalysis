@@ -1,0 +1,121 @@
+---
+title: "EMS_Results"
+author: "Michael Winn"
+date: "December 21, 2017"
+output: html_document
+---
+
+
+```{r input, echo = FALSE, message = FALSE, warning = FALSE}
+    rm(list = ls())
+    
+    knitr::opts_chunk$set(fig.width=10, 
+                   fig.height=5,
+                   echo=FALSE,
+                   warning=FALSE)
+
+    require(ggplot2)
+    require(psych)
+    require(dplyr)
+    require(plotly)
+
+    files <- list.files(path=".", pattern="^CP.*csv")
+    
+    data <- lapply(files, read.csv, sep=",", skip = 4, header=TRUE, stringsAsFactor = FALSE)
+    data <- do.call("rbind", data)
+    data <- data[data$Team != "",]
+  
+    data$Location <- as.factor(data$Location)
+    data$Round.1 <- as.numeric(data$Round.1)
+    data$Round.2 <- as.numeric(data$Round.2)
+    data$Cumulative <- as.numeric(data$Cumulative)
+    data$Team <- as.factor(data$Team)
+    # data <- droplevels(data)
+    
+    lookup <- read.csv("lookup.csv", sep=",", header = TRUE, stringsAsFactor = TRUE)
+    
+    data <- merge(lookup, data, by = "Team", all = TRUE, incomparables = '')
+    data$Name[is.na(data$Name)] <- 0
+    
+    ## Add overall place vectors by round
+    data <- data[order(data$Round.1, decreasing = TRUE),]
+    data$OverallRound1Place <- 1:nrow(data)
+
+    data <- data[order(data$Round.2, decreasing = TRUE),]
+    data$OverallRound2Place <- 1:nrow(data)
+
+    data <- data[order(data$Cumulative, decreasing = TRUE),]
+    data$OverallCumulativePlace <- 1:nrow(data)
+    
+    ## Add place by state for each round
+    data <- transform(data, StateRound1Place = ave (Round.1, Location, FUN = function(x) rank(-x, ties.method ="min")))
+    data <- transform(data, StateRound2Place = ave (Round.2, Location, FUN = function(x) rank(-x, ties.method ="min")))
+    data <- transform(data, StateCumulativePlace = ave (Cumulative, Location, FUN = function(x) rank(-x, ties.method ="min")))
+
+  
+```
+
+
+```{r input2, echo = FALSE, message = FALSE, warning = FALSE}
+
+  teams <- c('10-4784', '10-4785')
+  data[data$Location == 'GA',]
+
+  filter(data, Team %in% teams) %>% select_(.dots = c('Team', 'Name','Round.1', 'OverallRound1Place', 'StateRound1Place'))
+  filter(data, Team %in% teams) %>% select_(.dots = c('Team', 'Name','Round.2', 'OverallRound2Place', 'StateRound2Place'))
+  filter(data, Team %in% teams) %>% select_(.dots = c('Team', 'Name','Cumulative', 'OverallCumulativePlace', 'StateCumulativePlace'))
+  
+  filter(data, Team %in% teams) %>% select_(.dots = c('Cumulative'))
+
+
+
+
+  p <- plot_ly(
+    x = data$Location,
+    y = data$Cumulative,
+    name = "Overall Scores by State",
+    type = "bar"
+  )
+
+ p <- plot_ly(
+    data,
+    y = ~Cumulative,
+    x = ~Location,
+    type = "box",
+    boxpoints = "all"
+  ) %>% layout(title = 'Cumulative Score, by State')
+  
+  p
+    
+  p <- plot_ly(
+    data,
+    y = ~OverallCumulativePlace,
+    x = ~Location,
+    type = "box",
+    boxpoints = "all"
+  ) %>% layout(yaxis = list(autorange = "reversed"), title='Cumulative Place Spread, Grouped by State')
+
+  p
+  
+s <- seq.int(0, 15)
+p <- plot_ly(x = ~s, y = ~sin(s), mode = "lines")
+
+# initiate a line shape object
+line <- list(
+  type = "line",
+  line = list(color = "pink"),
+  xref = "x",
+  yref = "y"
+)
+
+lines <- list()
+for (i in filter(data, Team %in% teams) %>% select_(.dots = c('Cumulative'))) {
+  line[["x0"]] <- i
+  line[["x1"]] <- i + 2
+  lines <- c(lines, list(line))
+}
+
+p <- layout(p, title = 'Highlighting with Lines', shapes = lines)
+p
+```
+
