@@ -42,13 +42,13 @@ def main():
         if os.path.exists(fname):
             newtable.to_csv(fname, sep=',', mode = 'a', header = False)
         else:
-            newtable.to_csv(fname + '.csv', sep=',')
+            newtable.to_csv(fname, sep=',', mode = 'w', header = True)
 
         fname = ofile + '_times.csv'
         if os.path.exists(fname):
             tmgraph.to_csv(fname, sep=',', mode = 'a', header = False)
         else:
-            tmgraph.to_csv(fname, sep=',')
+            tmgraph.to_csv(fname, sep=',', mode = 'w', header = True)
 
     # [TODO] All new fields are 'char'; set fields to the appropriate data types (i.e., 'int')
 
