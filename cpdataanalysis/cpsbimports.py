@@ -1,12 +1,12 @@
 import logging
 import os
-import requests
+import re
 import time
 from random import random
-import re
 
-from bs4 import BeautifulSoup
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 
 class CPTableParser:
     ''' Retrieves the HTML scoreboard provided by the website and
