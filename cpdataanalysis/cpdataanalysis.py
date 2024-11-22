@@ -13,9 +13,11 @@ def main():
     # Prep: Parse arguments for input
     parser = argparse.ArgumentParser(description='CyberPatriot Data Analysis Bot')
 
-    parser.add_argument("url", help='URL to the Scoreboard', default="http://scoreboard.uscyberpatriot.org/index.php?division=Middle%20School")
+
+    #parser.add_argument('-u', "--url", help='URL to the Scoreboard', default="http://scoreboard.uscyberpatriot.org/index.php?division=Middle%20School")
+    parser.add_argument('-u', "--url", help='URL to the Scoreboard',default="https://scoreboard.uscyberpatriot.org/api/team/scores.php")
     parser.add_argument('-t', "--team", help="Text file of team numbers to track (one per line).", default="lookups")
-    parser.add_argument('-r', "--refresh", help="Refresh Interval (default: 5 seconds)")
+    parser.add_argument('-r', "--refresh", help="Refresh Interval (default: 5 seconds)", default=5)
     parser.add_argument('-o', "--output",
                         help="File name for output journal (default: 'output' in current directory)")
     args = parser.parse_args()
@@ -55,11 +57,14 @@ def main():
             print("\t[{} of {}] Fetching {}. Waiting for {} seconds... ({} picked from between 1 and {})".format(j, len(maintable.index), tnum, i, wait, maxwait), end='\r')
             time.sleep(1)
 
-        tmurl = "http://scoreboard.uscyberpatriot.org/team.php?team=" + tnum
+
+        tmurl = "https://scoreboard.uscyberpatriot.org/api/image/scores.php?team%5B%5D=" + tnum
 
         # [TODO] Implement queued threading to reduce time to fetch the stats
-        tmtbl, tmgraph = cp.getteamtable(tmurl)
+        # tmtbl, tmgraph = cp.getteamtable(tmurl)
+        tmtbl = cp.getteamtable(tmurl)
         # print(tmtbl)
+        tmtbl = tmtbl.rename(columns={'image': 'Image'})
 
         for i, r in tmtbl.iterrows():
             # print("Showing index {} and row {}".format(i,r))  # troubleshooting
@@ -74,8 +79,8 @@ def main():
         newtable = newtable.append(row)
         # print(newtable) # troubleshooting
 
-        tmgraph['Team'] = tnum
-        newgraph = newgraph.append(tmgraph)
+        # tmgraph['Team'] = tnum
+        # newgraph = newgraph.append(tmgraph)
 
     print()
     fname = ofile + '.csv'
