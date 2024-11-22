@@ -1,0 +1,651 @@
+---
+title: "Analysis of Cyber Patriot 13 Round 1"
+author: "mw"
+date: "November 13, 2020"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+  
+  knitr::opts_chunk$set(fig.width=10, fig.height=6, echo=FALSE, warning=FALSE)
+  
+  require(ggplot2)
+  require(psych)
+  require(dplyr)
+  require(scales)
+  require(grid)
+  require(gridExtra)
+  require(reshape2)
+  require(shiny)
+
+  
+  imagenames <- c("Server 2019", "Windows 10")
+  teams <- c("13-1714", "13-1715", "13-1716")
+  
+  colMax <- function(i) sapply(i, max, na.rm = TRUE)
+  
+  files <- list.files(path=".", pattern="^CP-XIII Round 1 Middle School Division_scores.csv")
+  
+  data <- lapply(files, read.csv, sep=",", header=TRUE, stringsAsFactor = FALSE)
+  data <- do.call(rbind, data)
+  
+  # Clean up the columns
+  names(data)[names(data) == "X"] <- "line"
+  # names(data)[names(data) == "X.Warn"] <- "warn"
+  # data$warn <- as.factor(data$warn)
+  data$Division <- as.factor(data$Division)
+  data$OverallPlace <- as.integer(data$OverallPlace)
+  data$PlayTime <- as.difftime(data$PlayTime, format = "%H:%M", units = "mins")
+  
+  # [TODO] Summarize the number of teams that attempted each image
+  
+  # [TODO] Clean up the image name suffixes
+  names(data) <- gsub(x = names(data), pattern = "_cpxiii_r1_hsms.", replacement = ".")
+  #names(data) <- gsub(x = names(data), pattern = "_cpxiii_r1_hsms.", replacement = ".")
+  #names(data) <- gsub(x = names(data), pattern = "_cpxiii_r1_hs.", replacement = ".")
+
+  # Summarize the images and total artifacts
+  totals <- colMax(data[names(data)[grep(".Found$", names(data))]] +
+           data[names(data)[grep(".Remaining$", names(data))]])
+  names(totals) <- gsub(x = names(totals), pattern = "Found", replacement = "Total") 
+  names(totals) <- unlist(lapply(strsplit(names(totals), "_"), `[[`, 1))
+  
+  names(data)[names(data)=="CiscoScore"] <- "CiscoScore.Found"  ## Hack to include Cisco Scores in image total
+  data$CiscoScore.Found[data$CiscoScore.Found==0] <- NA
+  imagetotals <- colSums(!is.na(data[names(data)[grep(".Found$", names(data))]]))
+  names(imagetotals) <- gsub(x = names(imagetotals), pattern = ".Found", replacement = "")
+  names(imagetotals)[names(imagetotals)=="CiscoScore"] <- "Cisco"
+  names(data)[names(data)=="CiscoScore.Found"] <- "CiscoScore"
+  
+  # Add Known team names from lookup file
+  lookup <- read.csv("lookup.csv", sep=",", header = TRUE, stringsAsFactor = TRUE)
+  data <- merge(lookup, data, by = "TeamNumber", all=TRUE, incomparables = '')
+  data$TeamName <- NULL
+  names(data)[names(data) == 'Name'] <- 'TeamName'
+  data$TeamName <- as.factor(data$TeamName)
+  excludes <- data[is.na(data$line),]
+  # data <- data[!is.na(data$line),]
+  
+  # Formats all of the "<image>.Time" columns into minutes
+  data[names(data)[grep(".Time", names(data))]] <- sapply(data[names(data)[grep(".Time", names(data))]], as.difftime, format = "%H:%M", units = "mins")
+  
+  # Coerce all of the "<image>.Warn" vectors to factors
+  data[names(data)[grep(".Warn", names(data))]] <- lapply(data[names(data)[grep(".Warn", names(data))]], as.factor)
+  
+  # Rename the penalty columns with a meaningful description
+  names(data)[names(data)=="X.."] <- "PenaltyType"
+  names(data)[names(data)=="Windows10..."] <- "Windows10.PenaltyType"
+  names(data)[names(data)=="Server2019..."] <- "Server2019.PenaltyType"
+  
+  # Add the completion ratios to each team's scores
+  # [TODO] Change the field names to match the competition images
+  data$Server2019.Completion <- data$Server2019.Found/totals[1]
+  #data$Ubuntu14.Completion <- data$Ubuntu14.Found/totals[2]
+  data$Windows10.Completion <- data$Windows10.Found/totals[2]
+  data$CiscoScore.Completion <- data$CiscoScore/30
+  
+  data$State <- as.factor(data$State)
+  data$StatePlace <- as.integer(data$StatePlace)
+  data$TeamNumber <- as.factor(data$TeamNumber)
+  data$Tier <- as.factor(data$Tier)
+  data$TotalScore <- as.integer(data$TotalScore)
+  data$ScoredImages <- as.factor(data$ScoredImages)
+  data$PenaltyType<-as.factor(data$PenaltyType)
+  data$Server2019.PenaltyType<-as.factor(data$Server2019.PenaltyType)
+  data$Windows10.PenaltyType<-as.factor(data$Windows10.PenaltyType)
+  
+  #row.names(data) <- NULL
+  
+  
+  # Remove unused columns (i.e. in this particular analysis)
+  data$Tier <- NULL
+  data$Division <- NULL
+  data$X.1 <-NULL
+  
+  data <- data[order(data$OverallPlace),]
+  top50 <- droplevels(data[data$OverallPlace >= 1 & data$OverallPlace <= 25,])
+  ga <- droplevels(data[data$State == "GA",])
+  cc <- droplevels(data[!is.na(data$TeamName),])
+  top50 <- top50[order(top50$OverallPlace),]
+  ga <- ga[order(ga$StatePlace),]
+  cc <- ga[order(cc$StatePlace),]
+  ga$Difference <- as.integer(c(0, diff(ga$TotalScore)))
+  topscore <- ga$TotalScore[1]
+  ga$OffLead <- ga$TotalScore-topscore
+  
+  nteams <- nrow(data)
+  myteams <- droplevels(data[data$TeamNumber %in% teams,])
+#  data$TotalScore[is.na(data$TotalScore)] <- 0
+
+```
+
+# INTRODUCTION
+The National Youth Cyber Defense Competition is the centerpiece of the Cyberpatriot program. 
+Teams compete by finding cybersecurity vulnerabilities on a set of virtual images, then fixing them while maintaining critical services. 
+Teams compete during a six hour period for the top placement within their state and region. 
+The 2020 season schedule has numerous modifications in order to accomodate the precautions implemented nationwide in response to the COVID-19 pandemic.
+For example, the first two rounds also begin on Thursday instead of the traditional Friday.
+Teams were offered the option of competing from home, with additional procedures.
+The EMS teams decided that we could meet all of the local safety precautions while still participating in the competition at school.
+The first round of the 2020 competition season took place on November 12-15, 2020.
+EMS participated in round 1 on Friday, November 13th.
+The second round will take place December 10-13,2020. 
+Instead of a state finals, there is a two-day-only 3rd round this year January 22-23, 2021
+
+<!-- Team,Name -->
+<!-- 13-1714, Error 403: Forbidden -->
+<!-- 13-1715,Cryptic Crew -->
+<!-- 13-1716,Chicken Defenders -->
+
+The Columbia County School District started competing in 2017 (CP-10) 
+Evans Middle School's first team had two five-student teams. 
+In the second year, it expanded to three teams; two with six students, and one with five students. 
+Last year, there were four teams: three with four students and one with five students. 
+The Evans Middle School teams for the 2020 season are *````Error 403: Forbidden````* (```13-1714```; 3 students), *```Cryptic Crew```* (```13-1715```; 4 students), *````Chicken Defenders````* (```13-1716```; 4 students).
+
+In the 2019 season (CP-12), Columbia County sponsored 26 teams across the school district, one more than the previous year and a 62.5% increase from the inaugural year. 
+Given the scheduling challenges associated with the pandemic, a 23% drop in participation is not surprising; there are only ```r length(cc$TeamNumber)``` Columbia County Middle School teams particiapting in 2020.
+The table below shows the Columbia County participation by school for the previous years.
+
+```{r CCteams, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+require(pander)
+panderOptions('table.split.table', 'table.emphasize.rownames')
+panderOptions('table.alignment.default', "left")
+my.data <- " 
+  School      | 2017 (CP-10)  | 2018 (CP-11)  | 2019 (CP-12)  | 2020 (CP-13)
+  EMS	        |	2 (10)       	|	3	(17)        |	4 (17)        | 3 (11 students)
+  CMS	        |	1	            |	0	            |	3             | 1
+  GBMS	      |	3           	|	3	            |	3             | 3
+  GTMS	      |	2	            |	5	            |	5             | 5
+  HMS	        |	2           	|	3	            |	0             | 0
+  LMS	        |	2           	|	4	            |	4             | 1
+  RMS	        |	2           	|	4	            |	2             | 2
+  SIMS	      |	2	            |	3	            |	5             | 5
+  **Total**   |	**16**	      |	**25**	      |	**26**        | **20**"
+  
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+# output the table in a format good for HTML/PDF/docx conversion
+```
+
+All three EMS teams competed in this round against a total of ```r nrow(data)``` teams in the nation, including ```r nrow(ga)``` in Georgia. 
+Though the Georgia participation was approximately the same as previous years, there were roughly half the number of overall teams participating in Round 1 compared to previous years.
+
+```{r GAteams, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+require(pander)
+panderOptions('table.split.table', 'table.emphasize.rownames')
+panderOptions('table.alignment.default', "left")
+my.data <- " 
+      | Round           | 2018 (CP-11)  | 2019 (CP-12)  | 2020 (CP-13)
+  US  | Round 1         | 801           | 724           | 386
+      | Round 2         | 810           | 818           |
+      | State Round     | 749           | No Data       |
+      | Semifinal Round | No Data       | 413           |
+      
+  GA  | Round 1         | 42            | 39            | 35
+      | Round 2         | 43            | 48            |
+      | State Round     | 42            | No Data       |
+      | Semifinal Round | No Data       | 29            |"
+  
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+# output the table in a format good for HTML/PDF/docx conversion
+```
+
+Note that ```r nrow(cc)``` of the Georgia schools represent local competition from other Columbia County schools.
+The top four Middle School teams in Georgia also finished in the overall top 25. 
+The EMS teams placed ```r ordinal(myteams$StatePlace)[1]```, ```r ordinal(myteams$StatePlace)[2]```, and ```r ordinal(myteams$StatePlace)[3]``` among the Georgia teams.
+
+The following analysis compares the Evans Middle School teams' performance among the national, state, and local results from the state round in order to develop strategic insights for subsequent rounds. 
+The insights can influence the coach and mentors to focus training materials in a way that increases the teams' competitiveness.
+
+# COMPETITION DESCRIPTION 
+
+During each round, the unofficial scores are delivered in near-real time via the competition website (```http://scoreboard.uscyberpatriot.org/```). 
+The main page displays a table of key competition data, such as current score and elapsed time. 
+Each row on the table contains a secondary link that provides supplementary data, such as a the number of artifacts found, artifacts remaining, and score per image as well as details on any penalties. 
+The analysis presented in this document flattens the data in order to extract potential insights that would otherwise remain unknown.
+
+There were ```r length(imagetotals)``` challenges in this round of competion.
+This year was the first time the Cisco Networking Challenge was part of the first round.
+The table below shows the total number of teams that attempted each image.
+
+
+```{r imagetotals, tidy=TRUE}
+  print(imagetotals)
+```
+
+Each image contained a number of artifacts for a total of 100 possible points for each image.
+The Cisco Networking Challenge consists of a quiz and a Packet Tracer scenario.
+They two components are graded separately for a combined possible score of 30 points.
+
+```{r imagesummary, tidy=TRUE}
+  print(totals)
+```
+
+<!-- A majority of the competing teams used the `cpxii_r2_hsms` images for Windows 10, Server 2016, and Ubuntu 14.  -->
+<!-- There were ```r nrow(data[grep("A",data$warn),])``` teams that competed using alternate images for Windows 10 and Server 2016.  -->
+<!-- These alternate images were labeled with a `ct_r2_hsms` designation.  -->
+<!-- All of the teams using the alternate images were from Canada, though most of the ``r length(data$State[data$State=="CAN"])`` Canadian teams used the `cpxii_r2_hsms` images.  -->
+<!-- The scoring for the alternate images did not significantly affect the outcome of the contest. -->
+
+<!-- ```{r alternate summary, tidy=TRUE} -->
+<!-- alts <- data[grep("A",data$warn),c(1, 16, 7, 5, 30:32, 4)] -->
+<!-- alts[is.na(alts)] <- 0 -->
+<!-- alts$Server2019.Completion <- percent(alts$Server2019.Completion) -->
+<!-- alts$Ubuntu14.Completion <- percent(alts$Ubuntu14.Completion) -->
+<!-- alts$Windows10.Completion <- percent(alts$Windows10.Completion) -->
+<!-- alts -->
+<!-- ``` -->
+
+# SCORING ANALYSIS 
+
+The overall results from the Evans Middle School teams are in the table below.
+_Note that the units for ```PlayTime``` fields are elapsed minutes since the image was initialized._ 
+_Teams have six continuous hours (i.e., 360 minutes) and must officially close their image before the deadline to avoid a penalty._
+
+## Team Results
+
+```{r myteamresults}
+  vars <- c("TeamName", "StatePlace", "OverallPlace", "TotalScore", "PlayTime")
+  print(myteams[vars], row.names = FALSE)
+```
+
+The following tables summarize the team results for each of the images. 
+More detailed analysis is included in the _Completion Analysis_ section, later in this document.
+
+### Windows 10 (`r totals[["Windows10.Total"]]` possible artifacts)
+```{r myteamWindows10}
+  vars <- c("TeamName", "Windows10.Found", "Windows10.Completion", "Windows10.Score", "Windows10.Time")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
+  print(disp, row.names = FALSE)
+```
+
+### Server 2019 (`r totals[["Server2019.Total"]]` possible artifacts)
+```{r myteamServer2019}
+  vars <- c("TeamName", "Server2019.Found", "Server2019.Completion", "Server2019.Score", "Server2019.Time")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Found", "Complete(%)", "Score", "Time(min)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
+  print(disp, row.names = FALSE)
+```
+
+
+### Cisco Networking Challenge (30 possible points)
+```{r myteamCisco}
+  vars <- c("TeamName", "CiscoScore", "CiscoScore.Completion")
+  disp <- myteams[vars]
+  names(disp) <- c("Name", "Score", "Complete(%)")
+  disp$`Complete(%)` <- percent(disp$`Complete(%)`)
+  print(disp, row.names = FALSE)
+
+```
+
+## Competition Results
+
+The analysis in this section presents the overall results of the state round. 
+Then, the results of the Evans Middle School teams is compared against the national, state, and the local community results.
+
+### Top 25 Teams
+```{r topnsummary}
+  # Extract the subsets of interest
+  numericInput("rows", "How many Teams?", 25)
+  
+  renderTable({
+    vars <- c("OverallPlace", "TeamNumber", "State", "StatePlace", "TotalScore")
+    head(data[vars], input$rows)
+  })
+```
+
+### Scores from Georgia schools
+<!-- Team listed in the table below are registered but did not compete in the semi-finals round. -->
+<!-- ```{r excludes} -->
+<!--   vars <- c("TeamNumber", "TeamName") -->
+<!--   print(excludes[vars], row.names = FALSE) -->
+<!-- ``` -->
+_NOTE: Teams with a `TeamName` represent Columbia County middle schools with Cyberpatriot teams._ 
+```{r statesummary}
+  renderTable({
+    vars <- c("StatePlace", "TeamNumber", "TeamName", "OverallPlace", "CiscoScore", "TotalScore", "Difference", "OffLead")
+    head(ga[vars], nrow(ga))  
+  }, row.names = FALSE)
+  
+```
+
+## Score Comparision
+
+The plots below summarize the unofficial scores by state. 
+The numbers along the bottom of the x-axis note the number of teams in each state. 
+The horizontal dashed line represents the national median score (```r median(data$TotalScore)```). 
+Blue highlights represent Georgia on the left plot, and the Columbia County Middle Schools on the right plot. 
+The Evans Middle School teams are highlighted in red on the right plot.
+
+The median score for the state of Georgia (```r median(ga$TotalScore)```) is higher than the national median. 
+However, the national median intersects with the state IQR, which suggests that the difference between the state median and the national median is not statistically significant.
+The results from round are overall favorable.
+Team 13-1714 (Error 403: Forbidden) was an upper outlier among the Georgia teams and Team 13-1715 (Cryptic Crew) was in the upper quartile for the state of Georgia.
+Both teams have a high density of 8th graders and veteran team members.
+Team 13-1716 (Chicken Defenders) consists of all 7th graders, and only one returning member. 
+While still performing above the national median, they finished slightly below the Georgia state median.
+
+```{r score}
+  give.n <- function(x){
+  return(c(y = -10, label = length(x))) 
+  }
+
+  p1 <- ggplot(data, aes(State, TotalScore)) +
+    geom_boxplot() +
+    ggtitle("Overall Scores by State") + labs(x = "State", y = "Score") +
+    theme(axis.text.x=element_text(size=6)) + 
+    scale_y_continuous(breaks=seq(0,300,20)) +
+    stat_summary(fun.data = give.n, geom = "text", size = 2, position = position_dodge(width = 1), fun.y = median) +
+    geom_boxplot(data=ga, aes(State, TotalScore),fill="blue") +
+    geom_line() + geom_hline(yintercept = median(data$TotalScore), lty=2)
+    
+    
+  p2 <- ggplot(data=ga, aes(State, TotalScore)) +
+      geom_boxplot(outlier.size=0) +
+      geom_jitter(data=data[data$TeamName != "",], aes(State, TotalScore),
+             position=position_jitter(width=0.1,height=0.1),
+             alpha=0.6,
+             size=3,
+             show.legend = FALSE,
+             color = "blue") +
+      geom_jitter(data=myteams, aes(State, TotalScore),
+               position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "red") +
+    scale_y_continuous(breaks=seq(0,300,60)) +
+    xlab("Georgia Teams") +
+    ylab("Score") +
+    ggtitle("GA Teams")
+    
+    grid.arrange(p1, p2, ncol = 2, top = "Score Analysis", widths = c(5, 1))
+    
+    dens <- data %>% group_by(State) %>% summarise(nteams = n(), medianscore = median(TotalScore))
+```
+
+### Score Density
+
+Overall placement is determined primarily by overall scores (higher is better).
+Numerous teams end up with the same overall score, so time (faster is better) is used to further categorize team placement.
+The plots below summarize the Overall Scores and Play Times to provide descriptive context of both variables for the remaining analysis.
+
+```{r densitystats}
+
+## [TODO] Separate into two graphs with different scales
+  tm <- data %>% select(OverallPlace, TotalScore, PlayTime)
+  d <- describeBy(tm[c(-1)])
+  print(d[,c(-1,-6,-7)], row.names = FALSE)
+  
+  d <- melt(tm, id.vars="OverallPlace")
+  p1 <- ggplot(d, aes(variable, value)) + geom_boxplot() +
+    xlab("Variable") +
+    ylab("Value") +
+    scale_y_continuous(breaks=seq(0,max(data$PlayTime, na.rm = TRUE),60)) +
+    ggtitle("Summary of Score and Time Variables")
+  p1
+  
+```
+
+The plots below illustrate the density of scores and time.
+The red bars represent the Evans Middle School teams.
+The blue bars represent the State of Georgia teams.
+The gray bars represent the national/international teams, or the overall field of competition.
+The vertical dotted line represents the national median score (```r median(data$TotalScore)```).
+The Georgia teams are spread on either side of the median. 
+The scores for the Evans Middle School scores were in competitive groups, and consistently above the median.
+
+The median play time was ```r median(data$PlayTime, na.rm = TRUE)``` minutes.
+`r length(data$PlayTime[which(data$PlayTime > 360)])` teams exceeded the 6-hour (i.e., 360 minutes) time limit.
+The Evans Middle School Teams closed out the challenges slightly early, with a mean play time of ```r round(mean(myteams$PlayTime), 0)``` minutes.
+
+```{r scoretimedensity}
+  p1 <- ggplot(data, aes(TotalScore)) +
+      geom_histogram(binwidth = 1) +
+      geom_histogram(data=ga, fill="blue", binwidth = 1) + 
+      geom_histogram(data=myteams, fill="red", binwidth = 1) + 
+      scale_x_continuous(breaks = seq(0,300,10)) +
+      scale_y_continuous(breaks=seq(0,25,2)) +
+      geom_vline(xintercept = median(data$TotalScore, na.rm = TRUE), lty=2) +
+      ggtitle("Scoring Density") + labs(x = "Overall Score", y = "Number of Teams")
+  
+  p1
+  
+  p2 <- ggplot(data, aes(PlayTime)) +
+      geom_histogram(binwidth = 10) + 
+      geom_histogram(data=ga, fill="blue", binwidth = 10) + 
+      geom_histogram(data=myteams, fill="red", binwidth = 10) + 
+      geom_vline(xintercept = median(data$PlayTime, na.rm = TRUE), lty=2) +
+      geom_vline(xintercept = 360) +
+      scale_x_continuous(breaks = seq(0,max(data$PlayTime, na.rm = TRUE),60)) +
+      scale_y_continuous(breaks=seq(0,200,10)) +
+      geom_text(aes(x=360, label="Time Limit", y=70), angle=90, vjust = 1, text=element_text(size=5)) +
+      ggtitle("Play Time Density") + labs(x = "Play Time (minutes)", y = "Number of Teams")
+  
+  p2
+
+```
+
+### Scores Compared to Time
+
+The plot below displays the number of teams (colored boxes) against both play time (*`x`*) and overall score and play time (*`y`*). 
+It confirms that the teams that score above the national median tend to play up to within 30 minutes of the limit. 
+An exception is the ```r length(data$PlayTime[data$TotalScore>190])``` highest scoring teams (i.e., score >190) that completed between ```r min(data$PlayTime[data$TotalScore>190])``` and ```r max(data$PlayTime[data$TotalScore>190])``` minutes with a median time of ```r median(data$PlayTime[data$TotalScore>190])```.
+
+```{r scorevstime}
+  # Two-dimension density plot
+  p <- ggplot(data, aes(PlayTime,TotalScore)) + 
+      stat_bin2d(binwidth=c(15,10)) +                       ## bins are 15 minutes and 10 points 
+      scale_fill_gradientn(colors=topo.colors(5)) + 
+
+      geom_hline(yintercept = median(data$TotalScore), lty=2) + 
+      geom_vline(xintercept = 360, color="red") +
+  
+      # geom_smooth(method = lm) +
+      scale_x_continuous(breaks = seq(0,max(data$PlayTime, na.rm = TRUE),60)) +
+      scale_y_continuous(breaks = seq(0,max(data$TotalScore, na.rm = TRUE),10)) + 
+      ggtitle("Density of Scores and Play Time") + labs(x = "Play Time (minutes)", y = "Overall Score")
+  p
+
+  # Scatter plot with smoothed line
+  # p1 <- ggplot(tm, aes(x=PlayTime, y=TotalScore)) + 
+  #   geom_point(shape = 1) + 
+  #   geom_vline(xintercept = 360) +
+  #   geom_smooth(method = lm) +
+  #   scale_x_continuous(breaks = seq(0,max(data$PlayTime, na.rm = TRUE),60)) +
+  #   scale_y_continuous(breaks=seq(0,max(data$TotalScore, na.rm = TRUE),10)) +
+  #   ggtitle("Score vs. Time") + labs(x = "Play Time (minutes)", y = "Overall Score")
+  # 
+  # p1
+
+```
+
+### State Team Density
+
+A total of ```r nrow(dens)``` states and countries participated in this round. 
+The table of diagnostic statistics below shows that each state has a large range of the number of teams as well and overall scores. 
+It may seem intuitive that states with more teams lead to better overall scores, 
+However, a comparison of the number of teams in each state against the state's median score suggests that there is very little statistical relationship between the two.
+The figures below summarize the descriptive statistics and density of teams per state/country.
+
+```{r teamdensitystats}
+  d <- describeBy(dens[c(-1)])
+  print(d[,c(-1,-6,-7)], row.names = FALSE)
+```
+
+
+```{r stateteams}
+  stteams <- data.frame(table(data$State))
+  names(stteams) <- c("State", "Teams")
+  
+  p1 <- tableGrob(head(stteams[order(-stteams$Teams),],10), rows = NULL)
+  
+  p2 <- ggplot(stteams, aes(x=reorder(State, -Teams), Teams)) +
+      geom_bar(stat = "identity") +
+      labs(x = "State", y = "Teams") +
+      theme(axis.text.x=element_text(size=6))
+
+  grid.arrange(p1, p2, ncol = 2, top = "Team Density by State", widths = c(1, 4))
+  
+```
+
+The plots below illustrate the states with the highest overall scores tend to have very few teams, while the states with the most teams trend along overall median. 
+
+The boxplot on the left provides the context of overall team density.
+The median density for a state is ```r quantile(dens$nteams)[["50%"]]``` teams, with an IQR of ```r quantile(dens$nteams)[["75%"]] - quantile(dens$nteams)[["25%"]]```.
+The outliers are plotted vertically.
+Georgia, with ```r dens[dens$State=="GA",]$nteams``` teams is one of the outliers.
+
+The scatterplot on the right shows each state/country horizontally against their median score.
+The points in red show the lowest and highest density states in relation to Georgia.
+The blue dashed line represents the overall median of the state median scores (```r quantile(dens$medianscore)[["50%"]]```) with an IQR of ```r quantile(dens$medianscore)[["75%"]] - quantile(dens$medianscore)[["25%"]]```; the IQR is omitted from the scatterplot for clarity.
+A small, positive correlation coefficient (```r round(cor(dens$nteams, dens$medianscore), 4)```) suggests that more teams per state do not necessarily translate into higher median scores.
+The median score for Georgia (```r dens[dens$State=="GA",]$medianscore```) is slightly higher than the overall median score, and within the IQR. 
+
+The plot suggests that the median scores per state varies with a lower density and moves towards the national median as the density increases. 
+Furthermore, the state of Georgia is a competitive population, and not necessarily due to the higher team density.
+
+
+```{r teamdensity}
+  p1 <- ggplot(dens, aes(x = "", y = nteams)) + 
+    geom_boxplot() + 
+    labs(x = "", y = "Overall Team Density per State")
+
+  p2 <- ggplot(dens, aes(x = nteams, y = medianscore)) + 
+  geom_point(aes(colour = ifelse((dens$State == "GA" | dens$nteams == max(dens$nteams) | dens$medianscore == max(dens$medianscore)), "black", "red")))+
+  geom_text(aes(label = ifelse((dens$State == "GA" | dens$nteams == max(dens$nteams) | dens$medianscore == max(dens$medianscore)), paste0(as.character(State), "(", as.character(nteams),")"), "")), hjust = 1, vjust = -0.75, size = 3)+
+  theme(legend.position = "none") +
+  annotate("text", label = paste0("cor = ", round(cor(dens$nteams, dens$medianscore), 4)), x = 100, y = 0) +
+  geom_hline(yintercept = median(data$TotalScore), color= "blue", lty=2) + 
+  labs(x = "Number of teams", y = "Median Score")
+  
+  grid.arrange(p1, p2, ncol = 2, top = "Team Density Analysis", widths = c(1, 5))
+```
+_NOTE: Each point represents a State's median score in relation to the number of teams in that state. Therefore, the horizontal blue dashed line represents the median of the overall scores, and not the median of the points represented in the plot (i.e., the median of medians)._
+
+# IMAGE ANALYSIS
+
+## Image Scoring
+
+```{r completionsetup}
+  d <- data.frame(table(data$ScoredImages))
+  names(d) <- c("Scored Images", "Teams")
+```
+
+The Evans Middle School teams attempted both of the competition images, consistent with ```r percent(d$Teams[2]/nrow(data))``` of the teams in the competition. 
+In contrast, ```r d$Teams[1]``` teams or ```r percent(d$Teams[1]/nrow(data))``` (including ```r nrow(droplevels(ga[ga$ScoredImages < max(as.integer(data$ScoredImages)),]))``` in Georgia) attempted less than ```r max(as.integer(data$ScoredImages))``` images. 
+The teams that did not attempt all of the images ended up placing between ```r min(data[data$ScoredImages < max(as.integer(data$ScoredImages)),]$OverallPlace)``` and ```r max(data[data$ScoredImages < max(as.integer(data$ScoredImages)),]$OverallPlace)```.
+
+The plot below shows a large variation among the scores with teams that attempted both images. 
+However, the scores from the teams did not attempt all of the images are are statistically significant enough to conclude that they are not competitive.
+
+```{r attempts}
+
+  ggplot(data, aes(x=ScoredImages, y = TotalScore)) + 
+  geom_boxplot(aes(group=ScoredImages)) + 
+  geom_jitter(color = "grey50") +
+      geom_jitter(data=data[data$TeamName != "",], aes(ScoredImages, TotalScore),
+             position=position_jitter(width=0.05,height=0.1),
+             alpha=0.6,
+             size=3,
+             show.legend = FALSE,
+             color = "blue") +
+      geom_jitter(data=myteams, aes(ScoredImages, TotalScore),
+               position=position_jitter(width=0.05,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "red") +
+      ggtitle("Scores per Images") + labs(x = "Attempted Images", y = "Score")
+
+```
+
+
+## Image Completion Rates
+
+The plots below show the ratio of artifacts found compared to number of total artifacts on each image. 
+Note that a ratio is used (i.e., instead of number of artifacts found) in order to compare the two images of different numbers of available artifacts. 
+In this case, the images have different numbers of possible artifacts, so using ratios is preferrable for comparison.
+
+All three of the Evans Middle School teams completed more on each image than the nationwide median. 
+
+> [TODO] Interpretation
+
+```{r completion}
+  ## Number of images (+1 if Cisco)
+  ## img <- length(imagenames)
+  img <- length(imagenames) + 1   
+  
+  d <-data[,c(1,(ncol(data)-(img-1)):ncol(data))] 
+  d <- melt(data = d, id.vars = "TeamNumber", measure.vars = c("Windows10.Completion","Server2019.Completion", "CiscoScore.Completion"))
+  d$variable <- gsub(".Completion", "", d$variable)
+  names(d) <- c("Teams", "Image", "Complete")
+  
+  db <- describeBy(d[3], group = d$Image, mat = TRUE, digits = 2)
+  
+  print(db[,c(-1,-3,-8,-9)], row.names = FALSE)
+  
+  ggplot(d, aes(x=Image, y = Complete)) +
+      geom_boxplot() +
+    
+      geom_jitter(data=d[d$Teams %in% ga$TeamNumber,], aes(Image, Complete),
+               #position=position_jitter(width=0.1,height=0.1),
+               alpha=0.6,
+               size=3,
+               show.legend = FALSE,
+               color = "blue") +
+
+      geom_jitter(data=d[d$Teams %in% teams,], aes(Image, Complete),
+         #position=position_jitter(width=0.1,height=0.1),
+         alpha=0.6,
+         size=3,
+         show.legend = FALSE,
+         color = "red") +
+    
+      ggtitle("Overall Completion Rates per Challenge") + labs(x = "Challenge", y = "% Complete")
+```
+
+## Image Artifacts
+
+The plots below count the number of teams that found the same number of artifacts on each image.
+The results are consistent with the previosuly stated observations.
+
+```{r imagescore}
+  # g1 <- ggplot(data, aes(Ubuntu14.Found)) + geom_bar() +
+  # geom_bar(data=ga, aes(Ubuntu14.Found),fill="blue") +
+  # geom_bar(data=myteams, aes(Ubuntu14.Found),fill="red", width = 1)
+
+# aes(fill = ifelse(data[data$TeamNumber %in% teams,]$Ubuntu14.Found, "grey50", "red"))
+
+  g2 <- ggplot(data, aes(Windows10.Found)) + geom_bar() + 
+    geom_bar(data=ga, aes(Windows10.Found),fill="blue") +
+    geom_bar(data=myteams, aes(Windows10.Found),fill="red", width = 1)
+  
+  g3 <- ggplot(data, aes(Server2019.Found)) + geom_bar() + 
+    geom_bar(data=ga, aes(Server2019.Found),fill="blue") +
+    geom_bar(data=myteams, aes(Server2019.Found),fill="red", width = 1)
+    
+  grid.arrange(g2, g3, ncol = 3, top = "Frequency of Finds per Image")
+
+```
+
+# CONCLUSIONS
+> [TODO]
+* Compared to the National and State teams, both of the Evans Middle School teams are very competitve Windows images.
+* The number of teams that compete in a given state does not necessarily have a positive effect on overall scores. In fact, the states with between ```7``` and ```12``` teams appear the most competitive.
+* Teams that do not attempt both images are not competitive, though attempting both images does not necessarily guarantee high placement.
+* There does not appear to be a significant advantage to finishing earlier, unless scoring perfectly. 
+Going over the time limit is a disadvantage.
+* [DRAFT] There is a clear advantage to attempting the Cisco challenge. With a median 16% completion rate (max 65%), there is plenty of room to compete.

@@ -2,10 +2,9 @@ import logging
 import os
 import requests
 import time
+import json
 from random import random
-import re
 
-from bs4 import BeautifulSoup
 import pandas as pd
 
 class CPTableParser:
@@ -33,17 +32,11 @@ class CPTableParser:
             page.write(response.text)
             page.close()
 
-        soup = BeautifulSoup(response.text, 'lxml')
+        if 'data' in json.loads(response.text).keys():
+            return json.loads(response.text)['data']
+        if 'cols' in json.loads(response.text).keys():
+            return json.loads(response.text)['cols']
 
-        ## [TODO] Need to include opportunity to parse graph data as well
-
-        r = [(0, self.parse_html_table(table)) for table in
-                soup.find_all('table')]
-
-        r = r + ([(0, self.parse_graph(script)) for script in
-                soup.find_all('script')])
-
-        return r
 
     def parse_html_table(self, table):
         n_columns = 0
@@ -86,7 +79,7 @@ class CPTableParser:
             if len(columns) > 0:
                 row_marker += 1
 
-        # Convert numerical columns to integers if possible
+        # Convert numberical columns to integers if possible
         for col in df:
             try:
                 df[col] = df[col].astype(int)
@@ -94,27 +87,6 @@ class CPTableParser:
                 pass
 
         return df
-
-    def parse_graph(self, script):
-        s = str(script)
-        s = s[s.find("([") + 3:s.find("])") - 7].replace('\r\n', '')
-        s = re.findall('\[(.*?)\]', s)
-
-        if not s:
-            return None
-
-        s = [i.split(', ') for i in s]
-
-        # Build the dataframe
-        headers = s.pop(0)
-        headers = [h.replace("'", "") for h in headers]
-
-        f = pd.DataFrame(s, columns = headers)
-
-        # Clean up data types
-        f['Time'] = pd.to_datetime(f['Time'], format="'%m/%d %H:%M'")
-
-        return f
 
 def addplaces(tbl):
     # add the overall place as a column so that each row can be tracked
@@ -169,25 +141,22 @@ def getmaintable(url, afile):
         # Handle the condition when the site is not providing a score table
         try:
             response = time.time()
-            table = cb.parse_url(url)[0][1]  # Extract the table from the tuple
+            table = pd.DataFrame.from_records(cb.parse_url(url))
 
         except (IndexError, UnboundLocalError) as e:
             delay = (10*random()) * (time.time() - response)
             if delay < 1 or delay > 60:
-                delay = 60 * random()
+                delay = 60*random()
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
             response = None
             continue
 
-    # Extracts the header names from the first row & removes the first row
-    table.columns = list(table.iloc[0])
-    table = table[1:]
-
-    # Renames the 'unfriendly' titles
-    table.rename(columns={'Play\xa0Timehh:mm:ss': 'PlayTime'}, inplace=True)
-    table.rename(columns={'Location/Category': 'State'}, inplace=True)
-    table.rename(columns={'CCSScore': 'CurrentScore'}, inplace=True)
+    table = table.rename(columns={'location': 'State'})
+    table = table.rename(columns={'team_number': 'TeamNumber'})
+    table = table.rename(columns={'ccs_score': 'CurrentScore'})
+    table = table.rename(columns={'play_time': 'PlayTime'})
+    table = table.rename(columns={'images': 'ScoredImages'})
 
     # Enrich the table with additional columns (overall place, place by
     # state, aliases from lookup table) and convert the data types
@@ -212,22 +181,21 @@ def getteamtable(url):
         # Handle the condition when the site is not providing a score table
         try:
             response = time.time()
-            tup = cb.parse_url(url)  # Extract the table from the tuple
-            table = tup[1][1]
-            graph = tup[3][1]
+            table = cb.parse_url(url)
 
-        except (IndexError, UnboundLocalError) as e:
+        except IndexError as e:
             delay = (10*random()) * (time.time() - response)
             if delay < 1 or delay > 60:
-                delay = 60 * random()
+                delay = refresh*random()
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
 
-    # Extracts the header names from the first row & removes the first row
-    table.columns = list(table.iloc[0])
-    table = table.iloc[1:]
+    table = table.rename(columns={'location': 'State'})
+    table = table.rename(columns={'team_number': 'TeamNumber'})
+    table = table.rename(columns={'ccs_score': 'CurrentScore'})
+    table = table.rename(columns={'images': 'ScoredImages'})
 
     # Renames the 'unfriendly' titles
-    table.rename(columns={'*Warn': 'Warn'}, inplace=True)
+    table = pd.DataFrame.from_records(table)
 
-    return table, graph
+    return table
