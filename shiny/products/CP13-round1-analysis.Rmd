@@ -52,6 +52,7 @@ runtime: shiny
   names(totals) <- unlist(lapply(strsplit(names(totals), "_"), `[[`, 1))
   
   names(data)[names(data)=="CiscoScore"] <- "CiscoScore.Found"  ## Hack to include Cisco Scores in image total
+  data$CiscoScore.Found[data$CiscoScore.Found==0] <- NA
   imagetotals <- colSums(!is.na(data[names(data)[grep(".Found$", names(data))]]))
   names(imagetotals) <- gsub(x = names(imagetotals), pattern = ".Found", replacement = "")
   names(imagetotals)[names(imagetotals)=="CiscoScore"] <- "Cisco"
@@ -212,8 +213,8 @@ The main page displays a table of key competition data, such as current score an
 Each row on the table contains a secondary link that provides supplementary data, such as a the number of artifacts found, artifacts remaining, and score per image as well as details on any penalties. 
 The analysis presented in this document flattens the data in order to extract potential insights that would otherwise remain unknown.
 
-There were ```r length(imagetotals)``` images in this round of competion. 
-Additionally, this year was the first time the Cisco Networking Challenge was part of the first round.
+There were ```r length(imagetotals)``` challenges in this round of competion.
+This year was the first time the Cisco Networking Challenge was part of the first round.
 The table below shows the total number of teams that attempted each image.
 
 
@@ -222,6 +223,8 @@ The table below shows the total number of teams that attempted each image.
 ```
 
 Each image contained a number of artifacts for a total of 100 possible points for each image.
+The Cisco Networking Challenge consists of a quiz and a Packet Tracer scenario.
+They two components are graded separately for a combined possible score of 30 points.
 
 ```{r imagesummary, tidy=TRUE}
   print(totals)
@@ -312,7 +315,7 @@ Then, the results of the Evans Middle School teams is compared against the natio
 _NOTE: Teams with a `TeamName` represent Columbia County middle schools with Cyberpatriot teams._ 
 ```{r statesummary}
   renderTable({
-    vars <- c("StatePlace", "TeamNumber", "TeamName", "OverallPlace", "TotalScore", "Difference", "OffLead")
+    vars <- c("StatePlace", "TeamNumber", "TeamName", "OverallPlace", "CiscoScore", "TotalScore", "Difference", "OffLead")
     head(ga[vars], nrow(ga))  
   }, row.names = FALSE)
   
@@ -322,11 +325,11 @@ _NOTE: Teams with a `TeamName` represent Columbia County middle schools with Cyb
 
 The plots below summarize the unofficial scores by state. 
 The numbers along the bottom of the x-axis note the number of teams in each state. 
-The horizontal dashed line represents the national median score (`r median(data$TotalScore)`). 
+The horizontal dashed line represents the national median score (```r median(data$TotalScore)```). 
 Blue highlights represent Georgia on the left plot, and the Columbia County Middle Schools on the right plot. 
 The Evans Middle School teams are highlighted in red on the right plot.
 
-The median score for the state of Georgia (`r median(ga$TotalScore)`) is higher than the national median. 
+The median score for the state of Georgia (```r median(ga$TotalScore)```) is higher than the national median. 
 However, the national median intersects with the state IQR, which suggests that the difference between the state median and the national median is not statistically significant.
 The results from round are overall favorable.
 Team 13-1714 (Error 403: Forbidden) was an upper outlier among the Georgia teams and Team 13-1715 (Cryptic Crew) was in the upper quartile for the state of Georgia.
@@ -400,13 +403,13 @@ The plots below illustrate the density of scores and time.
 The red bars represent the Evans Middle School teams.
 The blue bars represent the State of Georgia teams.
 The gray bars represent the national/international teams, or the overall field of competition.
-The vertical dotted line represents the national median score (`r median(data$TotalScore)`).
+The vertical dotted line represents the national median score (```r median(data$TotalScore)```).
 The Georgia teams are spread on either side of the median. 
 The scores for the Evans Middle School scores were in competitive groups, and consistently above the median.
 
-The median play time was `r median(data$PlayTime, na.rm = TRUE)` minutes.
+The median play time was ```r median(data$PlayTime, na.rm = TRUE)``` minutes.
 `r length(data$PlayTime[which(data$PlayTime > 360)])` teams exceeded the 6-hour (i.e., 360 minutes) time limit.
-The Evans Middle School Teams closed out the challenges slightly early, with a mean play time of `r round(mean(myteams$PlayTime), 0)` minutes.
+The Evans Middle School Teams closed out the challenges slightly early, with a mean play time of ```r round(mean(myteams$PlayTime), 0)``` minutes.
 
 ```{r scoretimedensity}
   p1 <- ggplot(data, aes(TotalScore)) +
@@ -640,7 +643,9 @@ The results are consistent with the previosuly stated observations.
 
 # CONCLUSIONS
 > [TODO]
-* Compared to the National and State teams, both of the Evans Middle School teams are very competitve on the Windows Server image, but could have been more competitive on the Windows 10 image.
+* Compared to the National and State teams, both of the Evans Middle School teams are very competitve Windows images.
 * The number of teams that compete in a given state does not necessarily have a positive effect on overall scores. In fact, the states with between ```7``` and ```12``` teams appear the most competitive.
 * Teams that do not attempt both images are not competitive, though attempting both images does not necessarily guarantee high placement.
-* [DRAFT] Is there an advantage to finishing earlier?
+* There does not appear to be a significant advantage to finishing earlier, unless scoring perfectly. 
+Going over the time limit is a disadvantage.
+* [DRAFT] There is a clear advantage to attempting the Cisco challenge. With a median 16% completion rate (max 65%), there is plenty of room to compete.
