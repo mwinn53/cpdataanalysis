@@ -190,8 +190,10 @@ def getteamtable(url):
             logging.warning('No score table returned in {0}. Retrying in {1:.2f} seconds.'.format(url, delay))
             time.sleep(delay)
 
-    # Extracts the header names from the first row & removes the first row
-
+    table = table.rename(columns={'location': 'State'})
+    table = table.rename(columns={'team_number': 'TeamNumber'})
+    table = table.rename(columns={'ccs_score': 'CurrentScore'})
+    table = table.rename(columns={'images': 'ScoredImages'})
 
     # Renames the 'unfriendly' titles
     table = pd.DataFrame.from_records(table)
