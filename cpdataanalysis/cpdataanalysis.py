@@ -36,6 +36,7 @@ def main():
         maxwait = int(args.refresh)
 
     maintable = cp.getmaintable(url, afile)
+    maintable = maintable[maintable['TeamNumber'].notna()]
     maintable = maintable.sort_values(by='ScoredImages', ascending=False)
     starttime = time.time()
     print(
